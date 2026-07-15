@@ -1,0 +1,9 @@
+{
+  "name": "calendar-ifms-prototype",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Protótipo navegável do Sistema de Calendário Acadêmico IFMS.",
+  "scripts": {
+    "dev": "node server.js"
+  }
+}

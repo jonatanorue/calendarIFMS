@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Calendário Acadêmico IFMS</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">IF</span>
+        <div>
+          <strong>Calendário IFMS</strong>
+          <small>Gestão acadêmica</small>
+        </div>
+      </div>
+      <nav>
+        <button class="active" data-view="dashboard">Dashboard</button>
+        <button data-view="annual">Calendário anual</button>
+        <button data-view="monthly">Visão mensal</button>
+        <button data-view="approval">Aprovação</button>
+        <button data-view="reports">Relatórios</button>
+        <button data-view="audit">Auditoria</button>
+      </nav>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Reitoria</p>
+          <h1>Sistema de Calendário Acadêmico IFMS</h1>
+          <p class="period">Período letivo: fevereiro de 2027 a janeiro de 2028</p>
+        </div>
+        <div class="actions">
+          <select id="roleFilter" aria-label="Perfil">
+            <option value="REITORIA">Reitoria</option>
+            <option value="CAMPUS">Campus</option>
+            <option value="ADMIN">Administrador</option>
+          </select>
+          <select id="campusFilter" aria-label="Campus"></select>
+          <button class="primary" data-action="publish-base" data-permission="publish-base">Publicar base</button>
+        </div>
+      </header>
+
+      <section id="dashboard" class="view active">
+        <div class="metrics" id="metrics"></div>
+        <div class="grid two">
+          <section class="panel">
+            <h2>Status por campus</h2>
+            <div class="status-list" id="campusStatus"></div>
+          </section>
+          <section class="panel">
+            <h2>Validação acadêmica</h2>
+            <div id="validationSummary"></div>
+          </section>
+        </div>
+        <section class="panel admin-panel" data-permission="manage-admin">
+          <div class="section-head compact">
+            <h2>Administração</h2>
+            <div class="actions">
+              <button data-action="manage-users">Gerenciar usuários</button>
+              <button data-action="manage-campi">Gerenciar campi</button>
+            </div>
+          </div>
+          <div id="adminOutput" class="output light"></div>
+        </section>
+      </section>
+
+      <section id="annual" class="view">
+        <div class="section-head">
+          <h2>Calendário acadêmico 2027/2028</h2>
+          <div class="actions">
+            <button data-action="open-reitoria-event" data-permission="reitoria-events">Incluir evento da Reitoria</button>
+            <button data-action="duplicate" data-permission="reitoria-events">Duplicar ano anterior</button>
+            <button data-action="simulate">Simular</button>
+            <button class="primary" data-action="submit" data-permission="campus-events">Enviar aprovação</button>
+          </div>
+        </div>
+        <div class="toolbar">
+          <select id="eventFilter" aria-label="Tipo de evento">
+            <option value="Todos">Todos os eventos</option>
+          </select>
+          <span id="calendarStatus" class="tag pending"></span>
+        </div>
+        <div class="legend" id="legend"></div>
+        <div class="months" id="months"></div>
+      </section>
+
+      <section id="monthly" class="view">
+        <div class="section-head">
+          <h2 id="monthlyTitle">Fevereiro 2027</h2>
+          <div class="actions">
+            <select id="monthSelector" aria-label="Mês"></select>
+            <button data-action="open-campus-event" data-permission="campus-events">Novo evento local</button>
+            <button class="primary" data-action="validate">Recalcular</button>
+          </div>
+        </div>
+        <div class="month-layout">
+          <div class="calendar-grid" id="monthGrid"></div>
+          <aside class="panel">
+            <h2>Totais do mês</h2>
+            <dl id="monthTotals"></dl>
+            <div class="hint">Eventos da Reitoria são bloqueados para os campi. Eventos locais podem ser arrastados entre os dias.</div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="approval" class="view">
+        <div class="section-head">
+          <h2>Fluxo de aprovação</h2>
+          <div class="actions">
+            <button data-action="approve" data-permission="approve-calendar">Aprovar selecionado</button>
+            <button data-action="reject" data-permission="approve-calendar">Rejeitar selecionado</button>
+          </div>
+        </div>
+        <table>
+          <thead><tr><th>Campus</th><th>Período</th><th>Status</th><th>Enviado em</th><th>Ações</th></tr></thead>
+          <tbody id="approvalRows"></tbody>
+        </table>
+      </section>
+
+      <section id="reports" class="view">
+        <div class="section-head">
+          <h2>Relatórios</h2>
+        </div>
+        <div class="grid three">
+          <button class="report" data-action="print">PDF paisagem / impressão</button>
+          <button class="report" data-action="excel">Excel CSV</button>
+          <button class="report" data-action="compare">Comparar campi</button>
+        </div>
+        <pre id="reportOutput" class="output"></pre>
+      </section>
+
+      <section id="audit" class="view">
+        <div class="section-head">
+          <h2>Auditoria</h2>
+        </div>
+        <table>
+          <thead><tr><th>Usuário</th><th>Data/Hora</th><th>Alteração</th><th>Anterior</th><th>Novo</th></tr></thead>
+          <tbody id="auditRows"></tbody>
+        </table>
+      </section>
+    </main>
+
+    <dialog id="eventDialog">
+      <form method="dialog" id="eventForm">
+        <div class="modal-head">
+          <h2 id="eventDialogTitle">Novo evento</h2>
+          <button type="button" class="icon-button" data-action="close-dialog">×</button>
+        </div>
+        <input type="hidden" id="eventScope" />
+        <label>
+          Tipo
+          <select id="eventType" required></select>
+        </label>
+        <label>
+          Título
+          <input id="eventTitle" required maxlength="80" />
+        </label>
+        <fieldset class="date-mode">
+          <legend>Período</legend>
+          <label class="checkbox">
+            <input type="radio" name="eventDateMode" value="single" checked />
+            Dia único
+          </label>
+          <label class="checkbox">
+            <input type="radio" name="eventDateMode" value="range" />
+            Início e fim
+          </label>
+        </fieldset>
+        <div class="form-grid">
+          <label>
+            <span id="eventStartLabel">Data</span>
+            <input id="eventStart" type="date" required min="2027-02-01" max="2028-01-31" />
+          </label>
+          <label id="eventEndField">
+            Fim
+            <input id="eventEnd" type="date" required min="2027-02-01" max="2028-01-31" />
+          </label>
+        </div>
+        <label>
+          Curso
+          <select id="eventCourse">
+            <option value="">Todos</option>
+            <option value="Técnico">Técnico</option>
+            <option value="Graduação">Graduação</option>
+          </select>
+        </label>
+        <label class="checkbox">
+          <input id="eventAffectsSchoolDay" type="checkbox" />
+          Conta como dia letivo
+        </label>
+        <div class="modal-actions">
+          <button type="button" data-action="close-dialog">Cancelar</button>
+          <button type="submit" class="primary">Salvar evento</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>
