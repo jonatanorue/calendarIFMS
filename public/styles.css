@@ -330,6 +330,15 @@ dt {
   outline: 1px solid rgba(0, 0, 0, 0.12);
 }
 
+.event-actions {
+  display: flex;
+  gap: 4px;
+  position: absolute;
+  right: 5px;
+  top: 5px;
+}
+
+.event-edit,
 .event-remove {
   align-items: center;
   background: rgba(255, 255, 255, 0.82);
@@ -343,12 +352,10 @@ dt {
   justify-content: center;
   min-height: 22px;
   padding: 0;
-  position: absolute;
-  right: 5px;
-  top: 5px;
   width: 22px;
 }
 
+.event-edit:hover,
 .event-remove:hover {
   background: #fff;
 }
@@ -392,8 +399,63 @@ dt {
   background: #f8fafc;
 }
 
+.day.school-day {
+  background: #f4fbf6;
+  box-shadow: inset 4px 0 0 #16a34a;
+}
+
+.day.non-school-day {
+  background: #fafafa;
+  color: #667085;
+}
+
 .day:hover {
   background: #f9fbff;
+}
+
+.day-head {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.day-kind {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.day.school-day .day-kind {
+  color: #166534;
+}
+
+.day-badges {
+  display: flex;
+  gap: 5px;
+  margin-top: 7px;
+  min-height: 22px;
+}
+
+.day-badge {
+  align-items: center;
+  border-radius: 999px;
+  color: #fff;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 800;
+  height: 20px;
+  justify-content: center;
+  line-height: 1;
+  width: 20px;
+}
+
+.day-badge.tecnico {
+  background: #f97316;
+}
+
+.day-badge.graduacao {
+  background: #7c2d12;
 }
 
 .weekday {
