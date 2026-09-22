@@ -26,6 +26,32 @@ Depois acesse:
 http://localhost:3001
 ```
 
+## Docker
+
+Com o `.env` preenchido (`GOOGLE_CLIENT_ID` é obrigatório):
+
+```bash
+docker compose up -d --build
+```
+
+- O banco fica no volume `calendario-data`, montado em `/app/data`. Ele sobrevive a atualizações do container.
+- A porta publicada é a 3001. Para mudar, defina `HOST_PORT` no `.env`.
+- `COOKIE_SECURE` vale `1` por padrão: sirva o sistema por HTTPS (por exemplo, atrás de um proxy reverso como Nginx ou Traefik).
+- `DEV_LOGIN` nunca é repassado ao container. Ali o login é sempre pelo Google.
+- Em produção, adicione a URL pública do sistema (ex.: `https://calendario.ifms.edu.br`) às origens autorizadas do Client ID no Google Cloud Console.
+
+Atualizar após mudanças no código:
+
+```bash
+git pull && docker compose up -d --build
+```
+
+Cópia de segurança do banco:
+
+```bash
+docker compose cp calendario:/app/data/calendar.db ./backup-calendar.db
+```
+
 ## Acesso
 
 - O login é feito com a conta Google institucional.

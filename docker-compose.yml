@@ -1,0 +1,21 @@
+services:
+  calendario:
+    build: .
+    image: calendario-ifms:latest
+    container_name: calendario-ifms
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${HOST_PORT:-3001}:3001"
+    environment:
+      # Valores lidos do arquivo .env ao lado deste compose.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?Defina GOOGLE_CLIENT_ID no .env}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      # Cookie de sessão só por HTTPS. Use 0 apenas para testar em http:// fora do localhost.
+      COOKIE_SECURE: ${COOKIE_SECURE:-1}
+      # DEV_LOGIN não é repassado de propósito: o container sempre exige login com Google.
+    volumes:
+      - calendario-data:/app/data
+
+volumes:
+  calendario-data:
