@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "description": "Protótipo navegável do Sistema de Calendário Acadêmico IFMS.",
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
-    "dev": "node server.js"
+    "dev": "node --env-file-if-exists=.env server.js"
   }
 }

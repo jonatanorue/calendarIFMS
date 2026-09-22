@@ -573,6 +573,90 @@ label {
   display: none !important;
 }
 
+.login-screen {
+  display: none;
+}
+
+body.signed-out {
+  display: block;
+}
+
+body.signed-out > .sidebar,
+body.signed-out > main {
+  display: none;
+}
+
+body.signed-out .login-screen {
+  display: grid;
+  min-height: 100vh;
+  padding: 24px 16px;
+  place-items: center;
+}
+
+.login-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
+  display: grid;
+  gap: 16px;
+  max-width: 400px;
+  padding: 28px;
+  width: 100%;
+}
+
+.login-card .brand {
+  margin-bottom: 0;
+}
+
+.login-card .brand-mark {
+  color: #fff;
+}
+
+.login-card .brand small {
+  color: var(--muted);
+}
+
+.login-card p {
+  margin: 0;
+}
+
+.dev-login {
+  border-top: 1px solid var(--line);
+  padding: 16px 0 0;
+}
+
+.login-message {
+  color: var(--red);
+  font-size: 13px;
+}
+
+.login-message:empty {
+  display: none;
+}
+
+.user-badge {
+  align-self: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.user-form {
+  align-items: end;
+  grid-template-columns: 2fr 1fr 1fr auto;
+  padding: 0;
+}
+
+#users > .panel {
+  margin-bottom: 16px;
+}
+
+@media (max-width: 900px) {
+  .user-form {
+    grid-template-columns: 1fr;
+  }
+}
+
 .modal-head,
 .modal-actions {
   align-items: center;

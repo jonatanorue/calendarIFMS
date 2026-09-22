@@ -6,7 +6,29 @@
     <title>Calendário Acadêmico IFMS</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
-  <body>
+  <body class="signed-out">
+    <section class="login-screen" id="loginScreen">
+      <div class="login-card">
+        <div class="brand">
+          <span class="brand-mark">IF</span>
+          <div>
+            <strong>Calendário IFMS</strong>
+            <small>Gestão acadêmica</small>
+          </div>
+        </div>
+        <p>Entre com sua conta institucional <strong>@ifms.edu.br</strong>.</p>
+        <div id="googleButton"></div>
+        <form id="devLoginForm" class="dev-login" hidden>
+          <label>
+            Login de desenvolvimento
+            <input id="devLoginEmail" type="email" required placeholder="nome@ifms.edu.br" />
+          </label>
+          <button type="submit">Entrar sem Google</button>
+        </form>
+        <p class="login-message" id="loginMessage" role="alert"></p>
+      </div>
+    </section>
+
     <aside class="sidebar">
       <div class="brand">
         <span class="brand-mark">IF</span>
@@ -21,25 +43,24 @@
         <button data-view="monthly">Visão mensal</button>
         <button data-view="approval">Aprovação</button>
         <button data-view="reports">Relatórios</button>
-        <button data-view="audit">Auditoria</button>
+        <button data-view="audit" data-permission="view-audit">Auditoria</button>
+        <button data-view="users" data-permission="manage-admin">Usuários</button>
       </nav>
     </aside>
 
     <main>
       <header class="topbar">
         <div>
-          <p class="eyebrow">Reitoria</p>
+          <p class="eyebrow" id="roleLabel">Reitoria</p>
           <h1>Sistema de Calendário Acadêmico IFMS</h1>
-          <p class="period">Período letivo: fevereiro de 2027 a janeiro de 2028</p>
+          <p class="period" id="periodLabel"></p>
         </div>
         <div class="actions">
-          <select id="roleFilter" aria-label="Perfil">
-            <option value="REITORIA">Reitoria</option>
-            <option value="CAMPUS">Campus</option>
-            <option value="ADMIN">Administrador</option>
-          </select>
           <select id="campusFilter" aria-label="Campus"></select>
+          <button data-action="open-init" data-permission="init-calendar">Inicializar calendário</button>
           <button class="primary" data-action="publish-base" data-permission="publish-base">Publicar base</button>
+          <span class="user-badge" id="userBadge"></span>
+          <button data-action="logout">Sair</button>
         </div>
       </header>
 
@@ -59,8 +80,9 @@
           <div class="section-head compact">
             <h2>Administração</h2>
             <div class="actions">
-              <button data-action="manage-users">Gerenciar usuários</button>
+              <button data-action="manage-users">Usuários e permissões</button>
               <button data-action="manage-campi">Gerenciar campi</button>
+              <button data-action="reset-demo">Restaurar dados de demonstração</button>
             </div>
           </div>
           <div id="adminOutput" class="output light"></div>
@@ -69,12 +91,12 @@
 
       <section id="annual" class="view">
         <div class="section-head">
-          <h2>Calendário acadêmico 2027/2028</h2>
+          <h2 id="annualTitle">Calendário acadêmico</h2>
           <div class="actions">
             <button data-action="open-reitoria-event" data-permission="reitoria-events">Incluir evento da Reitoria</button>
             <button data-action="duplicate" data-permission="reitoria-events">Duplicar ano anterior</button>
             <button data-action="simulate">Simular</button>
-            <button class="primary" data-action="submit" data-permission="campus-events">Enviar aprovação</button>
+            <button class="primary" data-action="submit" data-permission="submit-calendar">Enviar aprovação</button>
           </div>
         </div>
         <div class="toolbar">
@@ -101,7 +123,7 @@
           <aside class="panel">
             <h2>Totais do mês</h2>
             <dl id="monthTotals"></dl>
-            <div class="hint">Eventos da Reitoria são bloqueados para os campi. Eventos locais podem ser arrastados entre os dias.</div>
+            <div class="hint" id="monthHint"></div>
           </aside>
         </div>
       </section>
@@ -127,7 +149,7 @@
         <div class="grid three">
           <button class="report" data-action="print">PDF paisagem / impressão</button>
           <button class="report" data-action="excel">Excel CSV</button>
-          <button class="report" data-action="compare">Comparar campi</button>
+          <button class="report" data-action="compare" data-permission="view-all-campi">Comparar campi</button>
         </div>
         <pre id="reportOutput" class="output"></pre>
       </section>
@@ -139,6 +161,41 @@
         <table>
           <thead><tr><th>Usuário</th><th>Data/Hora</th><th>Alteração</th><th>Anterior</th><th>Novo</th></tr></thead>
           <tbody id="auditRows"></tbody>
+        </table>
+      </section>
+
+      <section id="users" class="view">
+        <div class="section-head">
+          <h2>Usuários e permissões</h2>
+        </div>
+        <section class="panel">
+          <form id="userForm" class="user-form">
+            <input type="hidden" id="editingUserEmail" />
+            <label>
+              E-mail institucional
+              <input id="userEmail" type="email" required placeholder="nome@ifms.edu.br" />
+            </label>
+            <label>
+              Perfil
+              <select id="userRole" required>
+                <option value="REITORIA">Reitoria</option>
+                <option value="CAMPUS">Campus</option>
+                <option value="ADMIN">Administrador (TI)</option>
+              </select>
+            </label>
+            <label id="userCampusField" hidden>
+              Campus
+              <select id="userCampus"></select>
+            </label>
+            <div class="actions">
+              <button type="button" data-action="cancel-user-edit" id="cancelUserEdit" hidden>Cancelar</button>
+              <button type="submit" class="primary" id="saveUserButton">Adicionar usuário</button>
+            </div>
+          </form>
+        </section>
+        <table>
+          <thead><tr><th>E-mail</th><th>Perfil</th><th>Campus</th><th>Cadastrado em</th><th>Cadastrado por</th><th>Ações</th></tr></thead>
+          <tbody id="userRows"></tbody>
         </table>
       </section>
     </main>
@@ -154,6 +211,10 @@
         <label>
           Tipo
           <select id="eventType" required></select>
+        </label>
+        <label id="eventCampusField">
+          Campus
+          <select id="eventCampus"></select>
         </label>
         <label>
           Título
@@ -173,11 +234,11 @@
         <div class="form-grid">
           <label>
             <span id="eventStartLabel">Data</span>
-            <input id="eventStart" type="date" required min="2027-02-01" max="2028-01-31" />
+            <input id="eventStart" type="date" required />
           </label>
           <label id="eventEndField">
             Fim
-            <input id="eventEnd" type="date" required min="2027-02-01" max="2028-01-31" />
+            <input id="eventEnd" type="date" required />
           </label>
         </div>
         <label>
@@ -199,7 +260,32 @@
       </form>
     </dialog>
 
+    <dialog id="initDialog">
+      <form method="dialog" id="initForm">
+        <div class="modal-head">
+          <h2>Inicializar calendário</h2>
+          <button type="button" class="icon-button" data-action="close-init">×</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            Data de início
+            <input id="initStart" type="date" required />
+          </label>
+          <label>
+            Data de fim
+            <input id="initEnd" type="date" required />
+          </label>
+        </div>
+        <p class="hint">Ao inicializar, todos os eventos são removidos, a base volta para edição e o status de todos os campi é reiniciado.</p>
+        <div class="modal-actions">
+          <button type="button" data-action="close-init">Cancelar</button>
+          <button type="submit" class="primary">Inicializar</button>
+        </div>
+      </form>
+    </dialog>
+
     <div id="toast" class="toast" role="status"></div>
+    <script src="/campuses.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>
