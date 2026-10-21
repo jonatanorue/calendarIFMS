@@ -59,9 +59,15 @@ function countAdmins() {
   return db.prepare("SELECT COUNT(*) AS total FROM users WHERE role = 'ADMIN'").get().total;
 }
 
+// Só cadastra o administrador inicial enquanto o banco não tiver nenhum administrador,
+// para que um administrador removido não volte ao reiniciar o servidor.
 function ensureAdmin(email) {
-  if (!email || findUser(email)) return false;
-  createUser({ email, role: "ADMIN", campus: null }, "sistema");
+  if (!email || countAdmins() > 0) return false;
+  if (findUser(email)) {
+    db.prepare("UPDATE users SET role = 'ADMIN', campus = NULL WHERE email = ?").run(email);
+  } else {
+    createUser({ email, role: "ADMIN", campus: null }, "sistema");
+  }
   return true;
 }
 

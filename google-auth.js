@@ -9,7 +9,7 @@ async function getGoogleKey(kid) {
   const expired = Date.now() >= keyCache.expiresAt;
   const unknownKid = !keyCache.keys.has(kid) && Date.now() - keyCache.fetchedAt > 60 * 1000;
   if (expired || unknownKid) {
-    const response = await fetch(certsUrl);
+    const response = await fetch(certsUrl, { signal: AbortSignal.timeout(5000) });
     if (!response.ok) throw new Error(`Falha ao obter as chaves do Google (${response.status})`);
     const { keys } = await response.json();
     const maxAge = Number(/max-age=(\d+)/.exec(response.headers.get("cache-control") || "")?.[1] || 3600);

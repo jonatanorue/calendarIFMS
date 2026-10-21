@@ -6,16 +6,30 @@ services:
     restart: unless-stopped
     init: true
     ports:
-      - "${HOST_PORT:-3001}:3001"
+      # Por padrão só aceita conexões do próprio servidor (proxy HTTPS na mesma máquina).
+      # Se o proxy estiver em outra máquina, defina HOST_BIND=0.0.0.0 no .env.
+      - "${HOST_BIND:-127.0.0.1}:${HOST_PORT:-3001}:3001"
     environment:
       # Valores lidos do arquivo .env ao lado deste compose.
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?Defina GOOGLE_CLIENT_ID no .env}
+      GOOGLE_HOSTED_DOMAIN: ${GOOGLE_HOSTED_DOMAIN-ifms.edu.br}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       # Cookie de sessão só por HTTPS. Use 0 apenas para testar em http:// fora do localhost.
       COOKIE_SECURE: ${COOKIE_SECURE:-1}
-      # DEV_LOGIN não é repassado de propósito: o container sempre exige login com Google.
+      # Use 1 quando houver proxy reverso, para o limite de login usar o IP real (X-Forwarded-For).
+      TRUST_PROXY: ${TRUST_PROXY:-1}
+      # DEV_LOGIN não é repassado de propósito, e o servidor o recusa com NODE_ENV=production.
     volumes:
       - calendario-data:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    pids_limit: 100
 
 volumes:
   calendario-data:

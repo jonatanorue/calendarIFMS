@@ -149,6 +149,11 @@ function logAudit(action, oldValue, newValue) {
   saveState();
 }
 
+// Todo texto digitado por usuários passa por aqui antes de entrar no HTML (evita XSS).
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+}
+
 function showToast(message) {
   const toast = document.getElementById("toast");
   toast.textContent = message;
@@ -326,7 +331,7 @@ function renderAnnual() {
         return start.getFullYear() === month.year && start.getMonth() === month.month;
       });
       const eventHtml = monthEvents
-        .map((event) => `<div class="event ${event.scope.toLowerCase()}" style="background:${event.color}">${event.title}<small>${event.type}</small></div>`)
+        .map((event) => `<div class="event ${escapeHtml(event.scope.toLowerCase())}" style="background:${escapeHtml(event.color)}">${escapeHtml(event.title)}<small>${escapeHtml(event.type)}</small></div>`)
         .join("");
       return `<article class="month"><strong>${month.short} ${month.year}</strong>${eventHtml || '<p class="empty">Sem eventos</p>'}</article>`;
     })
@@ -382,13 +387,13 @@ function eventMarkup(event) {
   const draggable = editable ? 'draggable="true"' : "";
   const actionButtons = editable
     ? `<div class="event-actions">
-    <button class="event-edit" type="button" data-action="edit-event" data-event-id="${event.id}" title="Editar evento">✎</button>
-    <button class="event-remove" type="button" data-action="remove-event" data-event-id="${event.id}" title="Remover evento">×</button>
+    <button class="event-edit" type="button" data-action="edit-event" data-event-id="${escapeHtml(event.id)}" title="Editar evento">✎</button>
+    <button class="event-remove" type="button" data-action="remove-event" data-event-id="${escapeHtml(event.id)}" title="Remover evento">×</button>
   </div>`
     : "";
   const origin = event.scope === "REITORIA" ? `Reitoria${event.campus ? ` · ${event.campus}` : ""}` : event.campus || "Campus";
-  return `<div class="event ${event.scope.toLowerCase()}" ${draggable} data-event-id="${event.id}" style="background:${event.color}">
-    <span>${event.title}</span>${actionButtons}<small>${origin}</small>
+  return `<div class="event ${escapeHtml(event.scope.toLowerCase())}" ${draggable} data-event-id="${escapeHtml(event.id)}" style="background:${escapeHtml(event.color)}">
+    <span>${escapeHtml(event.title)}</span>${actionButtons}<small>${escapeHtml(origin)}</small>
   </div>`;
 }
 
@@ -553,7 +558,7 @@ function renderApproval() {
 
 function renderAudit() {
   document.getElementById("auditRows").innerHTML = state.audit
-    .map((entry) => `<tr><td>${entry.user}</td><td>${entry.at}</td><td>${entry.action}</td><td>${entry.oldValue}</td><td>${entry.newValue}</td></tr>`)
+    .map((entry) => `<tr>${[entry.user, entry.at, entry.action, entry.oldValue, entry.newValue].map((value) => `<td>${escapeHtml(value)}</td>`).join("")}</tr>`)
     .join("");
 }
 
@@ -564,14 +569,14 @@ function renderUsers() {
   }
   document.getElementById("userRows").innerHTML = users
     .map((user) => `<tr>
-      <td>${user.email}</td>
-      <td>${roles[user.role].label}</td>
-      <td>${user.campus || "-"}</td>
-      <td>${formatDateTime(user.createdAt)}</td>
-      <td>${user.createdBy}</td>
+      <td>${escapeHtml(user.email)}</td>
+      <td>${escapeHtml(roles[user.role]?.label ?? user.role)}</td>
+      <td>${escapeHtml(user.campus || "-")}</td>
+      <td>${escapeHtml(formatDateTime(user.createdAt))}</td>
+      <td>${escapeHtml(user.createdBy)}</td>
       <td><div class="actions">
-        <button data-action="edit-user" data-email="${user.email}">Editar</button>
-        <button data-action="remove-user" data-email="${user.email}">Remover</button>
+        <button data-action="edit-user" data-email="${escapeHtml(user.email)}">Editar</button>
+        <button data-action="remove-user" data-email="${escapeHtml(user.email)}">Remover</button>
       </div></td>
     </tr>`)
     .join("") || '<tr><td colspan="6" class="empty">Nenhum usuário cadastrado.</td></tr>';
