@@ -63,14 +63,17 @@ const courseRules = {
   Técnico: {
     boundaryType: "Início/Fim de aulas Técnicas",
     allowedWeekdays: [1, 2, 3, 4, 5],
-    requiredDays: 100,
+    requiredDaysPerSemester: 100,
   },
   Graduação: {
     boundaryType: "Início/Fim de aulas Graduação",
     allowedWeekdays: [1, 2, 3, 4, 5, 6],
-    requiredDays: 100,
+    requiredDaysPerSemester: 100,
   },
 };
+
+const semesters = [1, 2];
+const boundaryTypes = Object.values(courseRules).map((rule) => rule.boundaryType);
 
 const initialState = {
   role: "REITORIA",
@@ -91,10 +94,14 @@ const initialState = {
   ),
   events: [
     makeEvent("Planejamento", "Planejamento pedagógico", "2027-02-03", "2027-02-07", "REITORIA", "", false),
-    makeEvent("Início/Fim de aulas Técnicas", "Início das aulas técnicas", "2027-02-10", "2027-02-10", "REITORIA", "Técnico", false),
-    makeEvent("Início/Fim de aulas Técnicas", "Fim das aulas técnicas", "2027-07-04", "2027-07-04", "REITORIA", "Técnico", false),
-    makeEvent("Início/Fim de aulas Graduação", "Início da graduação", "2027-02-17", "2027-02-17", "REITORIA", "Graduação", false),
-    makeEvent("Início/Fim de aulas Graduação", "Fim da graduação", "2027-07-05", "2027-07-05", "REITORIA", "Graduação", false),
+    makeEvent("Início/Fim de aulas Técnicas", "Início das aulas técnicas", "2027-02-10", "2027-02-10", "REITORIA", "Técnico", false, "", 1),
+    makeEvent("Início/Fim de aulas Técnicas", "Fim das aulas técnicas", "2027-07-04", "2027-07-04", "REITORIA", "Técnico", false, "", 1),
+    makeEvent("Início/Fim de aulas Graduação", "Início da graduação", "2027-02-17", "2027-02-17", "REITORIA", "Graduação", false, "", 1),
+    makeEvent("Início/Fim de aulas Graduação", "Fim da graduação", "2027-07-05", "2027-07-05", "REITORIA", "Graduação", false, "", 1),
+    makeEvent("Início/Fim de aulas Técnicas", "Início do 2º semestre técnico", "2027-08-02", "2027-08-02", "REITORIA", "Técnico", false, "", 2),
+    makeEvent("Início/Fim de aulas Técnicas", "Fim do 2º semestre técnico", "2027-12-17", "2027-12-17", "REITORIA", "Técnico", false, "", 2),
+    makeEvent("Início/Fim de aulas Graduação", "Início do 2º semestre da graduação", "2027-08-09", "2027-08-09", "REITORIA", "Graduação", false, "", 2),
+    makeEvent("Início/Fim de aulas Graduação", "Fim do 2º semestre da graduação", "2027-12-18", "2027-12-18", "REITORIA", "Graduação", false, "", 2),
     makeEvent("Sábado Letivo", "Sábado letivo", "2027-02-22", "2027-02-22", "CAMPUS", "Graduação", true, "Aquidauana"),
   ],
   audit: [
@@ -106,7 +113,7 @@ let state = loadState();
 let currentUser = null;
 let users = [];
 
-function makeEvent(type, title, start, end, scope, course, affectsSchoolDay, campus = "") {
+function makeEvent(type, title, start, end, scope, course, affectsSchoolDay, campus = "", semester = 1) {
   const typeConfig = eventTypes[type];
   return {
     id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
@@ -116,6 +123,7 @@ function makeEvent(type, title, start, end, scope, course, affectsSchoolDay, cam
     end,
     scope,
     course,
+    semester: boundaryTypes.includes(type) ? Number(semester) || 1 : null,
     affectsSchoolDay: typeConfig.alwaysNonSchoolDay ? false : affectsSchoolDay,
     campus,
     color: typeConfig.color,
@@ -198,12 +206,6 @@ function academicYearLabel() {
   const startYear = state.calendar.start.slice(0, 4);
   const endYear = state.calendar.end.slice(0, 4);
   return startYear === endYear ? startYear : `${startYear}/${endYear}`;
-}
-
-function firstSemesterLimits() {
-  const { start, end } = state.calendar;
-  const julyEnd = `${start.slice(0, 4)}-07-31`;
-  return { start, end: julyEnd >= start ? minDate(julyEnd, end) : end };
 }
 
 function isInAcademicPeriod(date) {
@@ -338,10 +340,8 @@ function renderMonthly() {
   const totalDays = new Date(month.year, month.month + 1, 0).getDate();
   const offset = (first.getDay() + 6) % 7;
   const cells = [];
-  const monthStart = `${month.year}-${String(month.month + 1).padStart(2, "0")}-01`;
-  const monthEnd = `${month.year}-${String(month.month + 1).padStart(2, "0")}-${String(totalDays).padStart(2, "0")}`;
-  const tecnicoDates = countCourseSchoolDays("Técnico", monthStart, monthEnd).dates;
-  const graduationDates = countCourseSchoolDays("Graduação", monthStart, monthEnd).dates;
+  const tecnicoDates = courseSchoolDates("Técnico");
+  const graduationDates = courseSchoolDates("Graduação");
   const monthEvents = selectedCampusEvents().filter((event) => {
     const start = new Date(`${event.start}T00:00:00`);
     return start.getFullYear() === month.year && start.getMonth() === month.month;
@@ -396,8 +396,9 @@ function renderMonthTotals(monthEvents) {
   const month = getAcademicMonths()[state.selectedMonthIndex];
   const monthStart = `${month.year}-${String(month.month + 1).padStart(2, "0")}-01`;
   const monthEnd = `${month.year}-${String(month.month + 1).padStart(2, "0")}-${String(new Date(month.year, month.month + 1, 0).getDate()).padStart(2, "0")}`;
-  const tecnicoDays = countCourseSchoolDays("Técnico", monthStart, monthEnd).total;
-  const graduationDays = countCourseSchoolDays("Graduação", monthStart, monthEnd).total;
+  const inMonth = (date) => date >= monthStart && date <= monthEnd;
+  const tecnicoDays = [...courseSchoolDates("Técnico")].filter(inMonth).length;
+  const graduationDays = [...courseSchoolDates("Graduação")].filter(inMonth).length;
   const localEvents = monthEvents.filter((event) => event.scope === "CAMPUS").length;
   const reitoriaEvents = monthEvents.filter((event) => event.scope === "REITORIA").length;
   document.getElementById("monthTotals").innerHTML = `
@@ -411,11 +412,12 @@ function renderMonthTotals(monthEvents) {
 
 function renderValidation() {
   const counts = countSchoolDays();
-  document.getElementById("validationSummary").innerHTML = [
-    validationCard("Técnico - 1º semestre", counts.tecnicoFirst.total, 100, counts.tecnicoFirst.periodLabel),
-    validationCard("Graduação - 1º semestre", counts.graduacaoFirst.total, 100, counts.graduacaoFirst.periodLabel),
-    weekdayCard("Distribuição semanal", counts.weekdays),
-  ].join("");
+  const semesterCards = Object.entries(counts.byCourse).flatMap(([course, results]) =>
+    results.map((result, index) =>
+      validationCard(`${course} - ${semesters[index]}º semestre`, result.total, courseRules[course].requiredDaysPerSemester, result.periodLabel),
+    ),
+  );
+  document.getElementById("validationSummary").innerHTML = [...semesterCards, weekdayCard("Distribuição semanal", counts.weekdays)].join("");
 }
 
 function validationCard(title, actual, required, detail = "") {
@@ -438,56 +440,55 @@ function weekdayCard(title, weekdays) {
 }
 
 function countSchoolDays() {
-  const semester = firstSemesterLimits();
-  const tecnicoFirst = countCourseSchoolDays("Técnico", semester.start, semester.end);
-  const graduacaoFirst = countCourseSchoolDays("Graduação", semester.start, semester.end);
-  const weekdayDates = new Set([...tecnicoFirst.dates, ...graduacaoFirst.dates]);
-  const counts = { tecnicoFirst, graduacaoFirst, weekdays: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 } };
+  const byCourse = Object.fromEntries(
+    Object.keys(courseRules).map((course) => [course, semesters.map((semester) => countCourseSchoolDays(course, semester))]),
+  );
+  const weekdays = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+  const weekdayDates = new Set(Object.keys(courseRules).flatMap((course) => [...courseSchoolDates(course)]));
   weekdayDates.forEach((date) => {
     const weekday = new Date(`${date}T00:00:00`).getDay();
-    if (weekday >= 1 && weekday <= 6) counts.weekdays[weekday] += 1;
+    if (weekday >= 1 && weekday <= 6) weekdays[weekday] += 1;
   });
-  return counts;
+  return { byCourse, weekdays };
 }
 
-function countCourseSchoolDays(course, limitStart, limitEnd) {
+// Dias letivos de um curso em um semestre: dias permitidos entre o início e o fim das aulas
+// daquele semestre, menos os eventos que bloqueiam e mais os que contam como dia letivo.
+function countCourseSchoolDays(course, semester) {
   const rule = courseRules[course];
   const countedDates = new Set();
-  const boundaries = getCourseBoundaries(course);
-  const periodStart = maxDate(boundaries.start, limitStart);
-  const periodEnd = minDate(boundaries.end, limitEnd);
-
-  if (periodStart && periodEnd && periodEnd >= periodStart) {
-    dateRange(periodStart, periodEnd).forEach((date) => {
-      const weekday = new Date(`${date}T00:00:00`).getDay();
-      if (rule.allowedWeekdays.includes(weekday)) countedDates.add(date);
-    });
+  const { start, end } = getSemesterBoundaries(course, semester);
+  if (!start || !end) {
+    return {
+      total: 0,
+      dates: countedDates,
+      periodLabel: `Cadastre início e fim das aulas de ${course.toLowerCase()} do ${semester}º semestre.`,
+    };
   }
+  const inSemester = (date) => date >= start && date <= end;
+
+  dateRange(start, end).forEach((date) => {
+    const weekday = new Date(`${date}T00:00:00`).getDay();
+    if (rule.allowedWeekdays.includes(weekday)) countedDates.add(date);
+  });
 
   scopedCampusEvents(false)
     .filter((event) => !event.affectsSchoolDay && isBlockingSchoolDayEvent(event, course))
-    .forEach((event) => {
-      dateRange(event.start, event.end).forEach((date) => {
-        if (date >= limitStart && date <= limitEnd) countedDates.delete(date);
-      });
-    });
+    .forEach((event) => dateRange(event.start, event.end).filter(inSemester).forEach((date) => countedDates.delete(date)));
 
   scopedCampusEvents(false)
     .filter((event) => event.affectsSchoolDay && appliesToCourse(event, course))
-    .forEach((event) => {
-      dateRange(event.start, event.end).forEach((date) => {
-        if (date >= limitStart && date <= limitEnd) countedDates.add(date);
-      });
-    });
+    .forEach((event) => dateRange(event.start, event.end).filter(inSemester).forEach((date) => countedDates.add(date)));
 
   return {
     total: countedDates.size,
     dates: countedDates,
-    periodLabel:
-      boundaries.start && boundaries.end
-        ? `Período analisado: ${formatDate(periodStart)} a ${formatDate(periodEnd)}.`
-        : `Cadastre início e fim das aulas de ${course.toLowerCase()} para fechar a contagem.`,
+    periodLabel: `Período analisado: ${formatDate(start)} a ${formatDate(end)}.`,
   };
+}
+
+function courseSchoolDates(course) {
+  return new Set(semesters.flatMap((semester) => [...countCourseSchoolDays(course, semester).dates]));
 }
 
 function appliesToCourse(event, course) {
@@ -505,10 +506,10 @@ function isBlockingSchoolDayEvent(event, course) {
   return blockingTypes.includes(event.type) && appliesToCourse(event, course);
 }
 
-function getCourseBoundaries(course) {
+function getSemesterBoundaries(course, semester) {
   const boundaryType = courseRules[course].boundaryType;
   const boundaryDates = scopedCampusEvents(false)
-    .filter((event) => event.type === boundaryType && (!event.course || event.course === course))
+    .filter((event) => event.type === boundaryType && appliesToCourse(event, course) && (event.semester || 1) === semester)
     .flatMap((event) => [event.start, event.end])
     .sort();
 
@@ -724,6 +725,7 @@ function openEventDialog(scope, date = state.calendar.start) {
   updateDateMode();
   document.getElementById("eventCourse").value = "";
   document.getElementById("eventAffectsSchoolDay").checked = false;
+  document.getElementById("eventSemester").value = String(guessSemester(date));
   updateSchoolDayCheckbox();
   dialog.showModal();
 }
@@ -748,6 +750,7 @@ function openEditEventDialog(eventId) {
   updateDateMode();
   document.getElementById("eventCourse").value = event.course;
   document.getElementById("eventAffectsSchoolDay").checked = event.affectsSchoolDay;
+  document.getElementById("eventSemester").value = String(event.semester || 1);
   updateSchoolDayCheckbox();
   dialog.showModal();
 }
@@ -772,6 +775,7 @@ function addEventFromForm(event) {
   }
   const affectsSchoolDay = eventTypes[type].alwaysNonSchoolDay ? false : document.getElementById("eventAffectsSchoolDay").checked;
   const campus = state.role === "CAMPUS" ? state.userCampus : document.getElementById("eventCampus").value;
+  const semester = Number(document.getElementById("eventSemester").value);
   if (editingEventId) {
     const existingEvent = state.events.find((item) => item.id === editingEventId);
     if (!existingEvent || !canEditEvent(existingEvent)) return;
@@ -785,6 +789,7 @@ function addEventFromForm(event) {
       document.getElementById("eventCourse").value,
       affectsSchoolDay,
       state.role === "CAMPUS" ? existingEvent.campus : campus,
+      semester,
     ));
     existingEvent.id = editingEventId;
     logAudit(scope === "CAMPUS" ? "Evento local editado" : "Evento da Reitoria editado", oldValue, eventLabel(existingEvent));
@@ -803,6 +808,7 @@ function addEventFromForm(event) {
     document.getElementById("eventCourse").value,
     affectsSchoolDay,
     campus,
+    semester,
   );
   state.events.push(newEvent);
   logAudit(scope === "CAMPUS" ? "Evento local incluído" : "Evento da Reitoria incluído", "-", eventLabel(newEvent));
@@ -849,8 +855,10 @@ function moveEvent(eventId, newDate) {
 }
 
 function validateBeforeSubmit() {
-  const counts = countSchoolDays();
-  return counts.tecnicoFirst.total === 100 && counts.graduacaoFirst.total === 100;
+  const { byCourse } = countSchoolDays();
+  return Object.entries(byCourse).every(([course, results]) =>
+    results.every((result) => result.total === courseRules[course].requiredDaysPerSemester),
+  );
 }
 
 function openInitDialog() {
@@ -1173,8 +1181,18 @@ function updateDateMode() {
   if (mode === "single") endInput.value = startInput.value;
 }
 
+// Sugere o 2º semestre para datas posteriores ao fim do 1º semestre já cadastrado.
+function guessSemester(date) {
+  const firstSemesterEnds = Object.keys(courseRules)
+    .map((course) => getSemesterBoundaries(course, 1).end)
+    .filter(Boolean)
+    .sort();
+  return firstSemesterEnds.length && date > firstSemesterEnds[firstSemesterEnds.length - 1] ? 2 : 1;
+}
+
 function updateSchoolDayCheckbox() {
   const type = document.getElementById("eventType").value;
+  document.getElementById("eventSemesterField").hidden = !boundaryTypes.includes(type);
   const checkbox = document.getElementById("eventAffectsSchoolDay");
   const disabled = Boolean(eventTypes[type]?.alwaysNonSchoolDay);
   checkbox.disabled = disabled;
