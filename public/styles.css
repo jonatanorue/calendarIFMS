@@ -500,6 +500,70 @@ th {
   min-height: 110px;
 }
 
+.report small {
+  color: var(--muted);
+  display: block;
+  font-weight: 400;
+  margin-top: 6px;
+}
+
+.report-output {
+  margin-top: 16px;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.compare-table td.count-ok {
+  color: #166534;
+  font-weight: 700;
+}
+
+.compare-table td.count-off {
+  background: #fef2f2;
+  color: var(--red);
+  font-weight: 700;
+}
+
+.notice {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  color: #1e3a8a;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+}
+
+.notice.warning {
+  background: #fff7ed;
+  border-color: #fdba74;
+  color: #9a3412;
+}
+
+.notice.success {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #166534;
+}
+
+textarea {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.print-only {
+  display: none;
+}
+
 .output {
   background: #111827;
   border-radius: 8px;
@@ -699,7 +763,9 @@ body.signed-out .login-screen {
   }
 
   .sidebar,
-  .topbar .actions,
+  .topbar,
+  .section-head .actions,
+  .toolbar,
   nav,
   dialog,
   .toast {
@@ -708,6 +774,26 @@ body.signed-out .login-screen {
 
   main {
     padding: 0;
+  }
+
+  .print-only {
+    color: var(--muted);
+    display: block;
+    margin: 4px 0 0;
+  }
+
+  .months {
+    grid-template-columns: repeat(4, 1fr) !important;
+  }
+
+  .month,
+  .legend {
+    break-inside: avoid;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   @page {

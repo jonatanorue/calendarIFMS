@@ -57,7 +57,6 @@ const roles = {
 };
 
 const storageKey = "calendar-ifms-state-v4";
-const today = new Date().toLocaleString("pt-BR");
 
 const courseRules = {
   Técnico: {
@@ -75,24 +74,19 @@ const courseRules = {
 const semesters = [1, 2];
 const boundaryTypes = Object.values(courseRules).map((rule) => rule.boundaryType);
 
-const initialState = {
-  role: "REITORIA",
-  userCampus: campuses[0],
-  calendar: { start: "2027-02-01", end: "2028-01-31" },
-  selectedCampus: allCampuses,
-  selectedMonthIndex: 0,
-  eventFilter: "Todos",
-  basePublished: false,
-  campusStatus: Object.fromEntries(
-    campuses.map((campus, index) => [
-      campus,
-      {
-        status: index % 6 === 0 ? "Rejeitado" : index % 3 === 0 ? "Pendente" : "Em edição",
-        submittedAt: index % 3 === 0 ? "10/10/2026" : "",
-      },
-    ]),
-  ),
-  events: [
+function freshCampusStatus() {
+  return Object.fromEntries(campuses.map((campus) => [campus, { status: "Em edição", submittedAt: "", reason: "", history: [] }]));
+}
+
+// Cada ano letivo guarda o próprio período, eventos, status dos campi e publicação.
+function makeYear(start, end, events = [], campusStatus = freshCampusStatus()) {
+  return { id: start, calendar: { start, end }, events, campusStatus, basePublished: false, finalPublished: false };
+}
+
+const demoYear = makeYear(
+  "2027-02-01",
+  "2028-01-31",
+  [
     makeEvent("Planejamento", "Planejamento pedagógico", "2027-02-03", "2027-02-07", "REITORIA", "", false),
     makeEvent("Início/Fim de aulas Técnicas", "Início das aulas técnicas", "2027-02-10", "2027-02-10", "REITORIA", "Técnico", false, "", 1),
     makeEvent("Início/Fim de aulas Técnicas", "Fim das aulas técnicas", "2027-07-04", "2027-07-04", "REITORIA", "Técnico", false, "", 1),
@@ -104,6 +98,27 @@ const initialState = {
     makeEvent("Início/Fim de aulas Graduação", "Fim do 2º semestre da graduação", "2027-12-18", "2027-12-18", "REITORIA", "Graduação", false, "", 2),
     makeEvent("Sábado Letivo", "Sábado letivo", "2027-02-22", "2027-02-22", "CAMPUS", "Graduação", true, "Aquidauana"),
   ],
+  Object.fromEntries(
+    campuses.map((campus, index) => [
+      campus,
+      {
+        status: index % 6 === 0 ? "Rejeitado" : index % 3 === 0 ? "Pendente" : "Em edição",
+        submittedAt: index % 3 === 0 ? "10/10/2026" : "",
+        reason: index % 6 === 0 ? "Ajustar a quantidade de dias letivos do 1º semestre." : "",
+        history: [],
+      },
+    ]),
+  ),
+);
+
+const initialState = {
+  role: "REITORIA",
+  userCampus: campuses[0],
+  activeYearId: demoYear.id,
+  years: { [demoYear.id]: demoYear },
+  selectedCampus: allCampuses,
+  selectedMonthIndex: 0,
+  eventFilter: "Todos",
   audit: [
     auditEntry("Sistema", "Calendário inicial criado", "-", "01/02/2027 a 31/01/2028"),
   ],
@@ -113,10 +128,14 @@ let state = loadState();
 let currentUser = null;
 let users = [];
 
+function newId() {
+  return crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random());
+}
+
 function makeEvent(type, title, start, end, scope, course, affectsSchoolDay, campus = "", semester = 1) {
   const typeConfig = eventTypes[type];
   return {
-    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
+    id: newId(),
     type,
     title,
     start,
@@ -131,21 +150,52 @@ function makeEvent(type, title, start, end, scope, course, affectsSchoolDay, cam
   };
 }
 
+function nowLabel() {
+  return new Date().toLocaleString("pt-BR");
+}
+
 function auditEntry(user, action, oldValue, newValue) {
-  return { user, at: today, action, oldValue, newValue };
+  return { user, at: nowLabel(), action, oldValue, newValue };
 }
 
 function loadState() {
-  const saved = localStorage.getItem(storageKey);
-  return saved ? { ...structuredClone(initialState), ...JSON.parse(saved) } : structuredClone(initialState);
+  const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
+  if (!saved) return structuredClone(initialState);
+  // Dados salvos antes dos anos letivos: o calendário único vira o primeiro ano.
+  if (!saved.years && saved.calendar) {
+    const migrated = makeYear(saved.calendar.start, saved.calendar.end, saved.events || [], saved.campusStatus || freshCampusStatus());
+    migrated.basePublished = Boolean(saved.basePublished);
+    saved.years = { [migrated.id]: migrated };
+    saved.activeYearId = migrated.id;
+    ["calendar", "events", "campusStatus", "basePublished"].forEach((key) => delete saved[key]);
+  }
+  Object.values(saved.years || {}).forEach((item) => {
+    Object.values(item.campusStatus).forEach((status) => {
+      status.reason ??= "";
+      status.history ??= [];
+    });
+  });
+  return { ...structuredClone(initialState), ...saved };
 }
 
 function saveState() {
   localStorage.setItem(storageKey, JSON.stringify(state));
 }
 
+function year() {
+  return state.years[state.activeYearId];
+}
+
+function sortedYears() {
+  return Object.values(state.years).sort((first, second) => second.calendar.start.localeCompare(first.calendar.start));
+}
+
+function isFinalPublished() {
+  return Boolean(year().finalPublished);
+}
+
 function logAudit(action, oldValue, newValue) {
-  state.audit.unshift(auditEntry(currentUser.email, action, oldValue, newValue));
+  state.audit.unshift(auditEntry(currentUser.email, `${action} [${academicYearLabel()}]`, oldValue, newValue));
   saveState();
 }
 
@@ -174,10 +224,12 @@ function visibleCampuses() {
 }
 
 function campusCanEdit(campus) {
-  return state.basePublished && ["Em edição", "Rejeitado"].includes(state.campusStatus[campus].status);
+  return year().basePublished && !isFinalPublished() && ["Em edição", "Rejeitado"].includes(year().campusStatus[campus].status);
 }
 
+// Com o calendário final publicado, ninguém edita eventos até a Reitoria reabrir.
 function canEditEvent(event) {
+  if (isFinalPublished()) return false;
   if (can("edit-any-event")) return true;
   return event.scope === "CAMPUS" && event.campus === state.userCampus && campusCanEdit(state.userCampus);
 }
@@ -186,9 +238,8 @@ function selectedCampusEvents() {
   return scopedCampusEvents(true);
 }
 
-function scopedCampusEvents(applyEventFilter) {
-  const campus = currentCampus();
-  return state.events.filter((event) => {
+function scopedCampusEvents(applyEventFilter, campus = currentCampus()) {
+  return year().events.filter((event) => {
     const campusMatches = campus === allCampuses || event.campus === "" || event.campus === campus;
     const typeMatches = !applyEventFilter || state.eventFilter === "Todos" || event.type === state.eventFilter;
     return campusMatches && typeMatches;
@@ -197,8 +248,8 @@ function scopedCampusEvents(applyEventFilter) {
 
 function getAcademicMonths() {
   const months = [];
-  const current = new Date(`${state.calendar.start.slice(0, 7)}-01T00:00:00`);
-  const last = new Date(`${state.calendar.end.slice(0, 7)}-01T00:00:00`);
+  const current = new Date(`${year().calendar.start.slice(0, 7)}-01T00:00:00`);
+  const last = new Date(`${year().calendar.end.slice(0, 7)}-01T00:00:00`);
   while (current <= last) {
     const label = monthNames[current.getMonth()];
     months.push({ label, short: label.slice(0, 3), year: current.getFullYear(), month: current.getMonth() });
@@ -207,14 +258,14 @@ function getAcademicMonths() {
   return months;
 }
 
-function academicYearLabel() {
-  const startYear = state.calendar.start.slice(0, 4);
-  const endYear = state.calendar.end.slice(0, 4);
+function academicYearLabel(calendar = year().calendar) {
+  const startYear = calendar.start.slice(0, 4);
+  const endYear = calendar.end.slice(0, 4);
   return startYear === endYear ? startYear : `${startYear}/${endYear}`;
 }
 
 function isInAcademicPeriod(date) {
-  return date >= state.calendar.start && date <= state.calendar.end;
+  return date >= year().calendar.start && date <= year().calendar.end;
 }
 
 function dateRange(start, end) {
@@ -242,16 +293,54 @@ function render() {
   renderApproval();
   renderAudit();
   renderUsers();
+  renderNotice();
+  renderReportScope();
   const calendarStatus = document.getElementById("calendarStatus");
-  calendarStatus.textContent = state.basePublished ? "Base publicada" : "Base em edição";
-  calendarStatus.className = `tag ${state.basePublished ? "approved" : "pending"}`;
+  calendarStatus.textContent = isFinalPublished() ? "Calendário final publicado" : year().basePublished ? "Base publicada" : "Base em edição";
+  calendarStatus.className = `tag ${year().basePublished ? "approved" : "pending"}`;
+}
+
+function renderNotice() {
+  const notice = document.getElementById("calendarNotice");
+  const item = state.role === "CAMPUS" ? year().campusStatus[state.userCampus] : null;
+  let text = "";
+  let tone = "";
+  if (isFinalPublished()) {
+    text = `Calendário final ${academicYearLabel()} publicado. Os eventos estão travados para edição.`;
+    tone = "success";
+  } else if (item?.status === "Rejeitado") {
+    text = `Calendário rejeitado pela Reitoria: "${item.reason}". Faça os ajustes e envie novamente.`;
+    tone = "warning";
+  } else if (item && !year().basePublished) {
+    text = "Aguardando a Reitoria publicar o calendário base para incluir os eventos do campus.";
+  } else if (item?.status === "Pendente") {
+    text = `Calendário enviado em ${item.submittedAt}. Aguardando a análise da Reitoria.`;
+  } else if (item?.status === "Aprovado") {
+    text = "Calendário do campus aprovado pela Reitoria.";
+    tone = "success";
+  } else if (item?.reason) {
+    text = item.reason;
+  }
+  notice.hidden = !text;
+  notice.textContent = text;
+  notice.className = `notice ${tone}`;
+}
+
+function scopeLabel() {
+  const campus = currentCampus();
+  return campus === allCampuses ? "Todos os campi" : `Campus ${campus}`;
+}
+
+function renderReportScope() {
+  document.getElementById("reportScope").textContent =
+    `Ano letivo ${academicYearLabel()} · ${scopeLabel()}. Para outro ano ou campus, troque nos seletores do topo.`;
 }
 
 function renderHeader() {
   document.getElementById("roleLabel").textContent =
     state.role === "CAMPUS" ? `Campus ${state.userCampus}` : roles[state.role].label;
   document.getElementById("periodLabel").textContent =
-    `Período letivo: ${formatDate(state.calendar.start)} a ${formatDate(state.calendar.end)}`;
+    `Período letivo: ${formatDate(year().calendar.start)} a ${formatDate(year().calendar.end)}`;
   document.getElementById("annualTitle").textContent = `Calendário acadêmico ${academicYearLabel()}`;
   document.getElementById("userBadge").textContent = currentUser.email;
   document.getElementById("monthHint").textContent =
@@ -274,6 +363,12 @@ function showView(viewId) {
 }
 
 function renderFilters() {
+  const yearFilter = document.getElementById("yearFilter");
+  yearFilter.innerHTML = sortedYears()
+    .map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(`Ano letivo ${academicYearLabel(item.calendar)}`)}</option>`)
+    .join("");
+  yearFilter.value = state.activeYearId;
+
   const campusFilter = document.getElementById("campusFilter");
   const campusOptions = state.role === "CAMPUS" ? [state.userCampus] : [allCampuses, ...campuses];
   campusFilter.innerHTML = campusOptions.map((campus) => `<option>${campus}</option>`).join("");
@@ -295,7 +390,7 @@ function renderFilters() {
 
 function renderMetrics() {
   const shown = visibleCampuses();
-  const statuses = shown.map((campus) => state.campusStatus[campus]);
+  const statuses = shown.map((campus) => year().campusStatus[campus]);
   const approved = statuses.filter((item) => item.status === "Aprovado").length;
   const pending = statuses.filter((item) => item.status === "Pendente").length;
   const rejected = statuses.filter((item) => item.status === "Rejeitado").length;
@@ -310,7 +405,7 @@ function renderMetrics() {
 function renderCampusStatus() {
   document.getElementById("campusStatus").innerHTML = visibleCampuses()
     .map((campus) => {
-      const status = state.campusStatus[campus].status;
+      const status = year().campusStatus[campus].status;
       return `<div class="status-row"><strong>${campus}</strong><span class="tag ${statusClass(status)}">${status}</span></div>`;
     })
     .join("");
@@ -459,10 +554,10 @@ function countSchoolDays() {
 
 // Dias letivos de um curso em um semestre: dias permitidos entre o início e o fim das aulas
 // daquele semestre, menos os eventos que bloqueiam e mais os que contam como dia letivo.
-function countCourseSchoolDays(course, semester) {
+function countCourseSchoolDays(course, semester, campus = currentCampus()) {
   const rule = courseRules[course];
   const countedDates = new Set();
-  const { start, end } = getSemesterBoundaries(course, semester);
+  const { start, end } = getSemesterBoundaries(course, semester, campus);
   if (!start || !end) {
     return {
       total: 0,
@@ -477,11 +572,11 @@ function countCourseSchoolDays(course, semester) {
     if (rule.allowedWeekdays.includes(weekday)) countedDates.add(date);
   });
 
-  scopedCampusEvents(false)
+  scopedCampusEvents(false, campus)
     .filter((event) => !event.affectsSchoolDay && isBlockingSchoolDayEvent(event, course))
     .forEach((event) => dateRange(event.start, event.end).filter(inSemester).forEach((date) => countedDates.delete(date)));
 
-  scopedCampusEvents(false)
+  scopedCampusEvents(false, campus)
     .filter((event) => event.affectsSchoolDay && appliesToCourse(event, course))
     .forEach((event) => dateRange(event.start, event.end).filter(inSemester).forEach((date) => countedDates.add(date)));
 
@@ -511,9 +606,9 @@ function isBlockingSchoolDayEvent(event, course) {
   return blockingTypes.includes(event.type) && appliesToCourse(event, course);
 }
 
-function getSemesterBoundaries(course, semester) {
+function getSemesterBoundaries(course, semester, campus = currentCampus()) {
   const boundaryType = courseRules[course].boundaryType;
-  const boundaryDates = scopedCampusEvents(false)
+  const boundaryDates = scopedCampusEvents(false, campus)
     .filter((event) => event.type === boundaryType && appliesToCourse(event, course) && (event.semester || 1) === semester)
     .flatMap((event) => [event.start, event.end])
     .sort();
@@ -541,19 +636,111 @@ function formatDate(date) {
 }
 
 function renderApproval() {
-  const canSelect = can("approve-calendar");
+  const reviewer = can("approve-calendar");
+  const locked = isFinalPublished();
+  document.getElementById("approvalTitle").textContent = `Fluxo de aprovação ${academicYearLabel()}`;
   document.getElementById("approvalRows").innerHTML = visibleCampuses()
     .map((campus) => {
-      const item = state.campusStatus[campus];
+      const item = year().campusStatus[campus];
+      const actions = [];
+      if (reviewer && !locked && item.status === "Pendente") {
+        actions.push(`<button class="primary" data-action="approve" data-campus="${campus}">Aprovar</button>`);
+        actions.push(`<button data-action="reject" data-campus="${campus}">Rejeitar</button>`);
+      }
+      if (reviewer && !locked && item.status === "Aprovado") {
+        actions.push(`<button data-action="reopen-campus" data-campus="${campus}">Reabrir</button>`);
+      }
+      if (reviewer) actions.push(`<button data-action="select-campus" data-campus="${campus}">Ver calendário</button>`);
       return `<tr>
         <td>${campus}</td>
-        <td>${academicYearLabel()}</td>
         <td><span class="tag ${statusClass(item.status)}">${item.status}</span></td>
-        <td>${item.submittedAt || "-"}</td>
-        <td>${canSelect ? `<button data-action="select-campus" data-campus="${campus}">Selecionar</button>` : "-"}</td>
+        <td>${escapeHtml(item.submittedAt || "-")}</td>
+        <td>${escapeHtml(item.reason || "-")}</td>
+        <td><div class="actions">${actions.join("") || "-"}</div></td>
       </tr>`;
     })
     .join("");
+
+  const approved = campuses.filter((campus) => year().campusStatus[campus].status === "Aprovado").length;
+  const finalButton = document.getElementById("finalButton");
+  finalButton.textContent = locked ? "Reabrir calendário" : "Publicar calendário final";
+  finalButton.disabled = !locked && !(year().basePublished && allCampusesApproved());
+  document.getElementById("finalHint").textContent = locked
+    ? "Calendário final publicado: ninguém edita eventos. Reabra para fazer ajustes."
+    : !year().basePublished
+      ? "Publique o calendário base para que os campi possam montar e enviar os calendários."
+      : `${approved} de ${campuses.length} campi aprovados. O calendário final pode ser publicado quando todos estiverem aprovados.`;
+}
+
+function csvCell(value) {
+  let text = String(value ?? "");
+  // Impede que o Excel interprete o texto como fórmula (injeção de CSV).
+  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+  return /[";\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function downloadCsv() {
+  const label = academicYearLabel();
+  const rows = [["Ano letivo", "Campus", "Tipo", "Título", "Início", "Fim", "Curso", "Semestre", "Conta como dia letivo", "Origem"]];
+  scopedCampusEvents(false)
+    .slice()
+    .sort((first, second) => first.start.localeCompare(second.start))
+    .forEach((item) => {
+      rows.push([
+        label,
+        item.campus || allCampuses,
+        item.type,
+        item.title,
+        formatDate(item.start),
+        formatDate(item.end),
+        item.course || "Todos",
+        item.semester ? `${item.semester}º` : "",
+        item.affectsSchoolDay ? "Sim" : "Não",
+        item.scope === "REITORIA" ? "Reitoria" : "Campus",
+      ]);
+    });
+  // BOM + ponto e vírgula: formato que o Excel em português abre direto.
+  const csv = `\uFEFF${rows.map((row) => row.map(csvCell).join(";")).join("\r\n")}`;
+  const campus = currentCampus();
+  const suffix = campus === allCampuses ? "" : `-${campus.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "-").toLowerCase()}`;
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  link.download = `calendario-${label.replace("/", "-")}${suffix}.csv`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  document.getElementById("reportOutput").innerHTML = `<p class="hint">Planilha <strong>${escapeHtml(link.download)}</strong> gerada com ${rows.length - 1} evento(s).</p>`;
+}
+
+function renderComparison() {
+  const columns = Object.keys(courseRules).flatMap((course) => semesters.map((semester) => ({ course, semester })));
+  const header = ["Campus", "Status", ...columns.map(({ course, semester }) => `${course} ${semester}º`), "Eventos do campus"];
+  const rows = campuses.map((campus) => {
+    const status = year().campusStatus[campus].status;
+    const counts = columns.map(({ course, semester }) => {
+      const total = countCourseSchoolDays(course, semester, campus).total;
+      const required = courseRules[course].requiredDaysPerSemester;
+      return `<td class="${total === required ? "count-ok" : "count-off"}" title="Exigido: ${required}">${total}</td>`;
+    });
+    const localEvents = year().events.filter((item) => item.campus === campus).length;
+    return `<tr><td>${campus}</td><td><span class="tag ${statusClass(status)}">${status}</span></td>${counts.join("")}<td>${localEvents}</td></tr>`;
+  });
+  document.getElementById("reportOutput").innerHTML = `
+    <p class="hint">Dias letivos por semestre em ${academicYearLabel()}. Em vermelho, os valores diferentes de ${courseRules.Técnico.requiredDaysPerSemester}.</p>
+    <div class="table-scroll">
+      <table class="compare-table">
+        <thead><tr>${header.map((title) => `<th>${title}</th>`).join("")}</tr></thead>
+        <tbody>${rows.join("")}</tbody>
+      </table>
+    </div>`;
+}
+
+function printAnnual() {
+  document.getElementById("printSubtitle").textContent =
+    `${scopeLabel()} · Período letivo ${formatDate(year().calendar.start)} a ${formatDate(year().calendar.end)} · Gerado em ${nowLabel()} por ${currentUser.email}`;
+  showView("annual");
+  window.print();
 }
 
 function renderAudit() {
@@ -693,8 +880,8 @@ function statusClass(status) {
 function setEventDateBounds() {
   ["eventStart", "eventEnd"].forEach((id) => {
     const input = document.getElementById(id);
-    input.min = state.calendar.start;
-    input.max = state.calendar.end;
+    input.min = year().calendar.start;
+    input.max = year().calendar.end;
   });
 }
 
@@ -708,9 +895,13 @@ function fillEventCampusField(scope, value) {
   select.value = value;
 }
 
-function openEventDialog(scope, date = state.calendar.start) {
+function openEventDialog(scope, date = year().calendar.start) {
+  if (isFinalPublished()) {
+    showToast("O calendário final está publicado. Reabra-o na tela Aprovação para editar.");
+    return;
+  }
   if (scope === "CAMPUS" && state.role === "CAMPUS" && !campusCanEdit(state.userCampus)) {
-    showToast(state.basePublished ? "O calendário do campus não está em edição." : "Aguarde a Reitoria publicar o calendário base.");
+    showToast(year().basePublished ? "O calendário do campus não está em edição." : "Aguarde a Reitoria publicar o calendário base.");
     return;
   }
   const dialog = document.getElementById("eventDialog");
@@ -736,7 +927,7 @@ function openEventDialog(scope, date = state.calendar.start) {
 }
 
 function openEditEventDialog(eventId) {
-  const event = state.events.find((item) => item.id === eventId);
+  const event = year().events.find((item) => item.id === eventId);
   if (!event || !canEditEvent(event)) return;
   const dialog = document.getElementById("eventDialog");
   const typeSelect = document.getElementById("eventType");
@@ -767,6 +958,7 @@ function eventLabel(event) {
 
 function addEventFromForm(event) {
   event.preventDefault();
+  if (isFinalPublished()) return;
   const scope = document.getElementById("eventScope").value;
   const editingEventId = document.getElementById("editingEventId").value;
   const type = document.getElementById("eventType").value;
@@ -782,7 +974,7 @@ function addEventFromForm(event) {
   const campus = state.role === "CAMPUS" ? state.userCampus : document.getElementById("eventCampus").value;
   const semester = Number(document.getElementById("eventSemester").value);
   if (editingEventId) {
-    const existingEvent = state.events.find((item) => item.id === editingEventId);
+    const existingEvent = year().events.find((item) => item.id === editingEventId);
     if (!existingEvent || !canEditEvent(existingEvent)) return;
     const oldValue = eventLabel(existingEvent);
     Object.assign(existingEvent, makeEvent(
@@ -815,7 +1007,7 @@ function addEventFromForm(event) {
     campus,
     semester,
   );
-  state.events.push(newEvent);
+  year().events.push(newEvent);
   logAudit(scope === "CAMPUS" ? "Evento local incluído" : "Evento da Reitoria incluído", "-", eventLabel(newEvent));
   saveState();
   document.getElementById("eventDialog").close();
@@ -824,11 +1016,11 @@ function addEventFromForm(event) {
 }
 
 function removeEvent(eventId) {
-  const eventIndex = state.events.findIndex((item) => item.id === eventId);
+  const eventIndex = year().events.findIndex((item) => item.id === eventId);
   if (eventIndex === -1) return;
-  const event = state.events[eventIndex];
+  const event = year().events[eventIndex];
   if (!canEditEvent(event)) return;
-  state.events.splice(eventIndex, 1);
+  year().events.splice(eventIndex, 1);
   logAudit("Evento removido", eventLabel(event), "-");
   saveState();
   render();
@@ -836,7 +1028,7 @@ function removeEvent(eventId) {
 }
 
 function moveEvent(eventId, newDate) {
-  const event = state.events.find((item) => item.id === eventId);
+  const event = year().events.find((item) => item.id === eventId);
   if (!event) return;
   if (!canEditEvent(event)) {
     showToast("Você não tem permissão para mover este evento.");
@@ -866,10 +1058,29 @@ function validateBeforeSubmit() {
   );
 }
 
-function openInitDialog() {
-  document.getElementById("initStart").value = state.calendar.start;
-  document.getElementById("initEnd").value = state.calendar.end;
+// Mesmo dia e mês, deslocado em anos; 29/02 vira 28/02 em ano não bissexto.
+function shiftDate(isoDate, years) {
+  const [yearPart, month, day] = isoDate.split("-").map(Number);
+  const targetYear = yearPart + years;
+  const lastDay = new Date(targetYear, month, 0).getDate();
+  return `${targetYear}-${String(month).padStart(2, "0")}-${String(Math.min(day, lastDay)).padStart(2, "0")}`;
+}
+
+function openInitDialog(copyFromId = "") {
+  const reference = state.years[copyFromId] || sortedYears()[0];
+  document.getElementById("initStart").value = shiftDate(reference.calendar.start, 1);
+  document.getElementById("initEnd").value = shiftDate(reference.calendar.end, 1);
+  document.getElementById("initCopyFrom").innerHTML =
+    '<option value="">Não copiar (começar vazio)</option>' +
+    sortedYears().map((item) => `<option value="${escapeHtml(item.id)}">Ano letivo ${academicYearLabel(item.calendar)}</option>`).join("");
+  document.getElementById("initCopyFrom").value = copyFromId;
+  document.getElementById("initCopyCampus").checked = false;
+  updateInitCopyField();
   document.getElementById("initDialog").showModal();
+}
+
+function updateInitCopyField() {
+  document.getElementById("initCopyCampusField").hidden = !document.getElementById("initCopyFrom").value;
 }
 
 function initializeCalendar(event) {
@@ -880,18 +1091,47 @@ function initializeCalendar(event) {
     showToast("A data de fim deve ser posterior à data de início.");
     return;
   }
-  const oldPeriod = `${formatDate(state.calendar.start)} a ${formatDate(state.calendar.end)}`;
-  state.calendar = { start, end };
-  state.events = [];
-  state.basePublished = false;
+  const overlapping = sortedYears().find((item) => start <= item.calendar.end && end >= item.calendar.start);
+  if (overlapping) {
+    showToast(`O período se sobrepõe ao ano letivo ${academicYearLabel(overlapping.calendar)}.`);
+    return;
+  }
+  const source = state.years[document.getElementById("initCopyFrom").value];
+  const includeCampusEvents = document.getElementById("initCopyCampus").checked;
+  let events = [];
+  let skipped = 0;
+  if (source) {
+    const offset = Number(start.slice(0, 4)) - Number(source.calendar.start.slice(0, 4));
+    const candidates = source.events.filter((item) => includeCampusEvents || item.scope === "REITORIA");
+    events = candidates
+      .map((item) => ({ ...structuredClone(item), id: newId(), start: shiftDate(item.start, offset), end: shiftDate(item.end, offset) }))
+      .filter((item) => item.start >= start && item.end <= end);
+    skipped = candidates.length - events.length;
+  }
+  const created = makeYear(start, end, events);
+  state.years[created.id] = created;
+  state.activeYearId = created.id;
   state.selectedMonthIndex = 0;
-  campuses.forEach((campus) => {
-    state.campusStatus[campus] = { status: "Em edição", submittedAt: "" };
-  });
-  logAudit("Calendário inicializado", oldPeriod, `${formatDate(start)} a ${formatDate(end)}`);
+  logAudit(
+    "Ano letivo criado",
+    source ? `Cópia de ${academicYearLabel(source.calendar)}` : "-",
+    `${formatDate(start)} a ${formatDate(end)} · ${events.length} evento(s)`,
+  );
   document.getElementById("initDialog").close();
+  document.getElementById("reportOutput").innerHTML = "";
   render();
-  showToast("Calendário inicializado. Cadastre os eventos da base.");
+  const skippedText = skipped ? ` ${skipped} evento(s) ficaram fora do novo período e não foram copiados.` : "";
+  showToast(`Ano letivo ${academicYearLabel()} criado com ${events.length} evento(s).${skippedText}`);
+}
+
+function setCampusStatus(campus, status, reason = "") {
+  const item = year().campusStatus[campus];
+  const old = item.status;
+  item.status = status;
+  item.reason = reason;
+  if (status === "Pendente") item.submittedAt = new Date().toLocaleDateString("pt-BR");
+  item.history.push({ status, at: nowLabel(), by: currentUser.email, reason });
+  logAudit("Status alterado", `${campus}: ${old}`, `${campus}: ${status}${reason ? ` (${reason})` : ""}`);
 }
 
 function submitCalendar() {
@@ -901,37 +1141,78 @@ function submitCalendar() {
     return;
   }
   if (!campusCanEdit(campus)) {
-    showToast(state.basePublished ? "Este calendário já foi enviado ou aprovado." : "Aguarde a Reitoria publicar o calendário base.");
+    showToast(year().basePublished ? "Este calendário já foi enviado ou aprovado." : "Aguarde a Reitoria publicar o calendário base.");
     return;
   }
   if (!validateBeforeSubmit()) {
     showToast("Envio bloqueado: regras acadêmicas ainda não foram atendidas.");
     return;
   }
-  const old = state.campusStatus[campus].status;
-  state.campusStatus[campus].status = "Pendente";
-  state.campusStatus[campus].submittedAt = new Date().toLocaleDateString("pt-BR");
-  logAudit("Calendário enviado para aprovação", old, `${campus}: Pendente`);
+  setCampusStatus(campus, "Pendente");
   render();
   showToast("Calendário enviado para aprovação.");
 }
 
-function reviewCalendar(action) {
-  const campus = state.selectedCampus;
-  if (campus === allCampuses) {
-    showToast("Selecione um campus na lista.");
-    return;
-  }
-  const old = state.campusStatus[campus].status;
-  if (old !== "Pendente") {
+function reviewCalendar(action, campus) {
+  if (isFinalPublished()) return;
+  if (year().campusStatus[campus]?.status !== "Pendente") {
     showToast(`${campus} não está pendente de aprovação.`);
     return;
   }
-  const status = action === "approve" ? "Aprovado" : "Rejeitado";
-  state.campusStatus[campus].status = status;
-  logAudit("Status alterado", old, `${campus}: ${status}`);
+  if (action === "approve") {
+    setCampusStatus(campus, "Aprovado");
+    render();
+    showToast(`${campus}: aprovado.`);
+    return;
+  }
+  document.getElementById("reviewCampus").value = campus;
+  document.getElementById("reviewTitle").textContent = `Rejeitar calendário de ${campus}`;
+  document.getElementById("reviewReason").value = "";
+  document.getElementById("reviewDialog").showModal();
+}
+
+function rejectFromForm(event) {
+  event.preventDefault();
+  const campus = document.getElementById("reviewCampus").value;
+  const reason = document.getElementById("reviewReason").value.trim();
+  if (!reason) {
+    showToast("Informe o motivo da rejeição.");
+    return;
+  }
+  if (year().campusStatus[campus]?.status !== "Pendente") return;
+  setCampusStatus(campus, "Rejeitado", reason);
+  document.getElementById("reviewDialog").close();
   render();
-  showToast(`${campus}: ${status}.`);
+  showToast(`${campus}: rejeitado. O campus verá o motivo.`);
+}
+
+function reopenCampus(campus) {
+  if (isFinalPublished() || year().campusStatus[campus]?.status !== "Aprovado") return;
+  setCampusStatus(campus, "Em edição", "Reaberto para ajustes pela Reitoria.");
+  render();
+  showToast(`${campus} reaberto para ajustes.`);
+}
+
+function allCampusesApproved() {
+  return campuses.every((campus) => year().campusStatus[campus].status === "Aprovado");
+}
+
+function toggleFinalPublication() {
+  if (isFinalPublished()) {
+    year().finalPublished = false;
+    logAudit("Calendário final reaberto", "Publicado", "Em ajustes");
+    render();
+    showToast("Calendário reaberto. Os eventos voltam a ser editáveis.");
+    return;
+  }
+  if (!year().basePublished || !allCampusesApproved()) {
+    showToast("Publique a base e aprove todos os campi antes de publicar o calendário final.");
+    return;
+  }
+  year().finalPublished = true;
+  logAudit("Calendário final publicado", "Em ajustes", "Publicado");
+  render();
+  showToast(`Calendário final ${academicYearLabel()} publicado.`);
 }
 
 document.addEventListener("click", (event) => {
@@ -952,44 +1233,35 @@ document.addEventListener("click", (event) => {
   if (action === "open-init" && can("init-calendar")) openInitDialog();
   if (action === "close-init") document.getElementById("initDialog").close();
   if (action === "publish-base" && can("publish-base")) {
-    if (state.basePublished) {
+    if (year().basePublished) {
       showToast("O calendário base já está publicado.");
       return;
     }
-    state.basePublished = true;
+    year().basePublished = true;
     logAudit("Calendário base publicado", "Em edição", "Base publicada");
     render();
     showToast("Calendário base publicado. Os campi já podem incluir eventos locais.");
   }
   if (action === "submit" && can("submit-calendar")) submitCalendar();
+  if (action === "toggle-final" && can("publish-base")) toggleFinalPublication();
+  if (action === "reopen-campus" && can("approve-calendar")) reopenCampus(event.target.dataset.campus);
+  if (action === "close-review") document.getElementById("reviewDialog").close();
   if (action === "select-campus") {
     state.selectedCampus = event.target.dataset.campus;
     saveState();
     render();
-    showToast(`${state.selectedCampus} selecionado.`);
+    showView("annual");
+    showToast(`Mostrando o calendário de ${state.selectedCampus}.`);
   }
-  if ((action === "approve" || action === "reject") && can("approve-calendar")) reviewCalendar(action);
-  if (action === "duplicate") {
-    logAudit("Calendário duplicado", "Ano anterior", academicYearLabel());
-    showToast("Calendário anterior duplicado para simulação.");
-    render();
-  }
+  if ((action === "approve" || action === "reject") && can("approve-calendar")) reviewCalendar(action, event.target.dataset.campus);
+  if (action === "duplicate" && can("init-calendar")) openInitDialog(state.activeYearId);
   if (action === "simulate" || action === "validate") {
     renderValidation();
     showToast("Validações recalculadas.");
   }
-  if (action === "print") window.print();
-  if (action === "excel") {
-    const events = can("view-all-campi") ? state.events : scopedCampusEvents(false);
-    document.getElementById("reportOutput").textContent = ["Campus,Tipo,Título,Início,Fim,Escopo"]
-      .concat(events.map((item) => `${item.campus || "Todos"},${item.type},${item.title},${item.start},${item.end},${item.scope}`))
-      .join("\n");
-  }
-  if (action === "compare" && can("view-all-campi")) {
-    document.getElementById("reportOutput").textContent = campuses
-      .map((campus) => `${campus}: ${state.campusStatus[campus].status}`)
-      .join("\n");
-  }
+  if (action === "print") printAnnual();
+  if (action === "excel") downloadCsv();
+  if (action === "compare" && can("view-all-campi")) renderComparison();
   if (action === "logout") logout();
   if (action === "manage-users" && can("manage-admin")) showView("users");
   if (action === "edit-user" && can("manage-admin")) editUser(event.target.dataset.email);
@@ -998,8 +1270,8 @@ document.addEventListener("click", (event) => {
   if (action === "manage-campi" && can("manage-admin")) {
     document.getElementById("adminOutput").textContent = campuses
       .map((campus) => {
-        const localEvents = state.events.filter((item) => item.campus === campus).length;
-        return `${campus}: ${state.campusStatus[campus].status} · ${localEvents} evento(s) específico(s)`;
+        const localEvents = year().events.filter((item) => item.campus === campus).length;
+        return `${campus}: ${year().campusStatus[campus].status} · ${localEvents} evento(s) específico(s)`;
       })
       .join("\n");
   }
@@ -1015,6 +1287,15 @@ document.addEventListener("click", (event) => {
 
 document.getElementById("eventForm").addEventListener("submit", addEventFromForm);
 document.getElementById("initForm").addEventListener("submit", initializeCalendar);
+document.getElementById("initCopyFrom").addEventListener("change", updateInitCopyField);
+document.getElementById("reviewForm").addEventListener("submit", rejectFromForm);
+document.getElementById("yearFilter").addEventListener("change", (event) => {
+  state.activeYearId = event.target.value;
+  state.selectedMonthIndex = 0;
+  document.getElementById("reportOutput").innerHTML = "";
+  saveState();
+  render();
+});
 document.getElementById("userForm").addEventListener("submit", saveUserFromForm);
 document.getElementById("userRole").addEventListener("change", updateUserCampusField);
 document.getElementById("devLoginForm").addEventListener("submit", async (event) => {
@@ -1053,9 +1334,13 @@ document.getElementById("monthGrid").addEventListener("dblclick", (event) => {
   if (event.target.closest("button")) return;
   const day = event.target.closest(".day[data-date]");
   if (!day) return;
+  if (isFinalPublished()) {
+    showToast("O calendário final está publicado. Reabra-o na tela Aprovação para editar.");
+    return;
+  }
   const eventElement = event.target.closest("[data-event-id]");
   if (eventElement) {
-    const calendarEvent = state.events.find((item) => item.id === eventElement.dataset.eventId);
+    const calendarEvent = year().events.find((item) => item.id === eventElement.dataset.eventId);
     if (calendarEvent && canEditEvent(calendarEvent)) openEditEventDialog(calendarEvent.id);
     else showToast("Você não tem permissão para editar este evento.");
     return;

@@ -56,8 +56,9 @@
           <p class="period" id="periodLabel"></p>
         </div>
         <div class="actions">
+          <select id="yearFilter" aria-label="Ano letivo"></select>
           <select id="campusFilter" aria-label="Campus"></select>
-          <button data-action="open-init" data-permission="init-calendar">Inicializar calendário</button>
+          <button data-action="open-init" data-permission="init-calendar">Novo ano letivo</button>
           <button class="primary" data-action="publish-base" data-permission="publish-base">Publicar base</button>
           <span class="user-badge" id="userBadge"></span>
           <button data-action="logout">Sair</button>
@@ -65,6 +66,7 @@
       </header>
 
       <section id="dashboard" class="view active">
+        <div class="notice" id="calendarNotice" role="status" hidden></div>
         <div class="metrics" id="metrics"></div>
         <div class="grid two">
           <section class="panel">
@@ -91,10 +93,13 @@
 
       <section id="annual" class="view">
         <div class="section-head">
-          <h2 id="annualTitle">Calendário acadêmico</h2>
+          <div>
+            <h2 id="annualTitle">Calendário acadêmico</h2>
+            <p class="print-only" id="printSubtitle"></p>
+          </div>
           <div class="actions">
             <button data-action="open-reitoria-event" data-permission="reitoria-events">Incluir evento da Reitoria</button>
-            <button data-action="duplicate" data-permission="reitoria-events">Duplicar ano anterior</button>
+            <button data-action="duplicate" data-permission="init-calendar">Duplicar para novo ano</button>
             <button data-action="simulate">Simular</button>
             <button class="primary" data-action="submit" data-permission="submit-calendar">Enviar aprovação</button>
           </div>
@@ -130,28 +135,31 @@
 
       <section id="approval" class="view">
         <div class="section-head">
-          <h2>Fluxo de aprovação</h2>
+          <h2 id="approvalTitle">Fluxo de aprovação</h2>
           <div class="actions">
-            <button data-action="approve" data-permission="approve-calendar">Aprovar selecionado</button>
-            <button data-action="reject" data-permission="approve-calendar">Rejeitar selecionado</button>
+            <button class="primary" id="finalButton" data-action="toggle-final" data-permission="publish-base"></button>
           </div>
         </div>
-        <table>
-          <thead><tr><th>Campus</th><th>Período</th><th>Status</th><th>Enviado em</th><th>Ações</th></tr></thead>
-          <tbody id="approvalRows"></tbody>
-        </table>
+        <p class="hint" id="finalHint"></p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Campus</th><th>Status</th><th>Enviado em</th><th>Observação da Reitoria</th><th>Ações</th></tr></thead>
+            <tbody id="approvalRows"></tbody>
+          </table>
+        </div>
       </section>
 
       <section id="reports" class="view">
         <div class="section-head">
           <h2>Relatórios</h2>
         </div>
+        <p class="hint" id="reportScope"></p>
         <div class="grid three">
-          <button class="report" data-action="print">PDF paisagem / impressão</button>
-          <button class="report" data-action="excel">Excel CSV</button>
-          <button class="report" data-action="compare" data-permission="view-all-campi">Comparar campi</button>
+          <button class="report" data-action="print">Imprimir calendário anual<small>Use "Salvar como PDF" na janela de impressão</small></button>
+          <button class="report" data-action="excel">Baixar planilha (CSV)<small>Abre no Excel e no LibreOffice</small></button>
+          <button class="report" data-action="compare" data-permission="view-all-campi">Comparar campi<small>Dias letivos por semestre e status</small></button>
         </div>
-        <pre id="reportOutput" class="output"></pre>
+        <div id="reportOutput" class="report-output"></div>
       </section>
 
       <section id="audit" class="view">
@@ -270,7 +278,7 @@
     <dialog id="initDialog">
       <form method="dialog" id="initForm">
         <div class="modal-head">
-          <h2>Inicializar calendário</h2>
+          <h2>Novo ano letivo</h2>
           <button type="button" class="icon-button" data-action="close-init">×</button>
         </div>
         <div class="form-grid">
@@ -283,10 +291,37 @@
             <input id="initEnd" type="date" required />
           </label>
         </div>
-        <p class="hint">Ao inicializar, todos os eventos são removidos, a base volta para edição e o status de todos os campi é reiniciado.</p>
+        <label>
+          Copiar eventos de
+          <select id="initCopyFrom"></select>
+        </label>
+        <label class="checkbox" id="initCopyCampusField">
+          <input id="initCopyCampus" type="checkbox" />
+          Incluir os eventos locais dos campi
+        </label>
+        <p class="hint">Os anos anteriores ficam guardados e podem ser consultados no seletor de ano. Eventos copiados mantêm o dia e o mês no novo ano; revise principalmente o início e o fim das aulas, porque os dias da semana mudam.</p>
         <div class="modal-actions">
           <button type="button" data-action="close-init">Cancelar</button>
-          <button type="submit" class="primary">Inicializar</button>
+          <button type="submit" class="primary">Criar ano letivo</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="reviewDialog">
+      <form method="dialog" id="reviewForm">
+        <div class="modal-head">
+          <h2 id="reviewTitle">Rejeitar calendário</h2>
+          <button type="button" class="icon-button" data-action="close-review">×</button>
+        </div>
+        <input type="hidden" id="reviewCampus" />
+        <label>
+          Motivo e ajustes necessários
+          <textarea id="reviewReason" required maxlength="500" rows="4" placeholder="Ex.: o 2º semestre técnico está com 98 dias letivos."></textarea>
+        </label>
+        <p class="hint">O campus verá este texto e poderá corrigir e reenviar o calendário.</p>
+        <div class="modal-actions">
+          <button type="button" data-action="close-review">Cancelar</button>
+          <button type="submit" class="primary">Rejeitar</button>
         </div>
       </form>
     </dialog>
