@@ -60,7 +60,7 @@ docker compose cp calendario:/app/data/calendar.db ./backup-calendar.db
 - Sessão em cookie `HttpOnly`, `SameSite=Lax` e, com `COOKIE_SECURE=1`, `Secure` com prefixo `__Host-`; o banco guarda só o hash do token.
 - Escritas na API exigem JSON (proteção contra CSRF) e há limite de 20 tentativas de login a cada 5 minutos por IP.
 - Cabeçalhos de segurança: CSP, `X-Frame-Options`, `nosniff`, `Referrer-Policy` e HSTS (com `COOKIE_SECURE=1`).
-- **Pendente**: as permissões de edição do calendário ainda são aplicadas só no navegador, porque os dados do calendário ainda não estão no banco.
+- Todas as regras do calendário (quem inclui, altera, envia, aprova e publica) são conferidas no servidor, inclusive a contagem de 100 dias letivos antes do envio. O navegador só esconde os botões.
 
 ## Acesso
 
@@ -72,17 +72,21 @@ docker compose cp calendario:/app/data/calendar.db ./backup-calendar.db
 
 ## Funcionalidades já prototipadas
 
-- Período acadêmico definido pela Reitoria ao inicializar o calendário.
+- Vários anos letivos, criados pela Reitoria, com opção de copiar os eventos de um ano anterior.
 - Lista dos 13 campi do IFMS em ordem alfabética.
 - Filtro por campus e por tipo de evento.
-- Eventos da Reitoria para todos os campi ou para um campus específico.
-- Eventos locais do campus.
+- Eventos da Reitoria (calendário base) para todos os campi ou para um campus específico.
+- Eventos do campus, incluindo feriados municipais (cadastrados pela Reitoria ou pelo próprio campus).
 - Inclusão de eventos por dia único ou intervalo de datas, inclusive com duplo clique no dia.
 - Visualização anual e mensal.
 - Arrastar e soltar eventos.
 - Totais e validações acadêmicas.
-- Fluxo de publicação da base, envio, aprovação e rejeição.
+- Publicação da base (depois de publicada, não pode mais ser alterada), envio, aprovação, rejeição com motivo e publicação do calendário final.
 - Relatórios em CSV, comparação entre campi e impressão paisagem.
-- Auditoria.
+- Auditoria gravada pelo servidor.
 
-Os dados do calendário (eventos, status e auditoria) ainda ficam no `localStorage` do navegador. Os usuários e as sessões ficam no banco SQLite.
+## Dados
+
+Tudo fica no banco SQLite (`data/calendar.db`): usuários, sessões, anos letivos, eventos, status dos campi, histórico de aprovação e auditoria. No navegador ficam só preferências de tela (ano, campus, mês e filtro selecionados).
+
+As regras de tipos de evento e de contagem de dias letivos ficam em `public/rules.js`, usado pelo navegador e pelo servidor.

@@ -4,6 +4,7 @@ const path = require("path");
 const campuses = require("./public/campuses.js");
 const db = require("./db");
 const { verifyGoogleIdToken } = require("./google-auth");
+const { handleCalendarApi } = require("./calendar-api");
 
 const port = Number(process.env.PORT || 3001);
 const publicDir = path.join(__dirname, "public");
@@ -152,6 +153,12 @@ function validateUserInput(body) {
   return { value: { email, role, campus } };
 }
 
+const roleLabels = { REITORIA: "Reitoria", CAMPUS: "Campus", ADMIN: "Administrador (TI)" };
+
+function userLabel(user) {
+  return `${user.email} · ${roleLabels[user.role]}${user.campus ? ` (${user.campus})` : ""}`;
+}
+
 async function handleUsers(req, res, url, admin) {
   const targetEmail = (safeDecode(url.pathname.slice("/api/users/".length)) ?? "").toLowerCase();
 
@@ -164,7 +171,9 @@ async function handleUsers(req, res, url, admin) {
     const { error, value } = validateUserInput(await readJson(req));
     if (error) return sendJson(res, 400, { error });
     if (db.findUser(value.email)) return sendJson(res, 409, { error: "Este e-mail já está cadastrado." });
-    sendJson(res, 201, db.createUser(value, admin.email));
+    const created = db.createUser(value, admin.email);
+    db.addAudit({ user: admin.email, action: "Usuário cadastrado", newValue: userLabel(created) });
+    sendJson(res, 201, created);
     return;
   }
 
@@ -181,13 +190,16 @@ async function handleUsers(req, res, url, admin) {
     if (isLastAdmin && value.role !== "ADMIN") {
       return sendJson(res, 409, { error: "É necessário manter pelo menos um administrador." });
     }
-    sendJson(res, 200, db.updateUser(existing.email, value));
+    const updated = db.updateUser(existing.email, value);
+    db.addAudit({ user: admin.email, action: "Usuário alterado", oldValue: userLabel(existing), newValue: userLabel(updated) });
+    sendJson(res, 200, updated);
     return;
   }
 
   if (req.method === "DELETE") {
     if (isLastAdmin) return sendJson(res, 409, { error: "É necessário manter pelo menos um administrador." });
     db.deleteUser(existing.email);
+    db.addAudit({ user: admin.email, action: "Usuário removido", oldValue: userLabel(existing) });
     sendJson(res, 200, { ok: true });
     return;
   }
@@ -259,6 +271,11 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  if (url.pathname.startsWith("/api/years") || url.pathname === "/api/audit") {
+    await handleCalendarApi(req, res, url, user, { sendJson, readJson });
+    return;
+  }
+
   sendJson(res, 404, { error: "Rota não encontrada." });
 }
 
@@ -315,7 +332,8 @@ const server = http.createServer(async (req, res) => {
     try {
       await handleApi(req, res, url);
     } catch (error) {
-      console.error(error);
+      // Recusas esperadas (4xx) não são erros do servidor; só falhas reais vão para o log.
+      if (!error.status) console.error(error);
       if (!res.headersSent) sendJson(res, error.status || 500, { error: error.status ? error.message : "Erro interno do servidor." });
     }
     return;

@@ -84,7 +84,6 @@
             <div class="actions">
               <button data-action="manage-users">Usuários e permissões</button>
               <button data-action="manage-campi">Gerenciar campi</button>
-              <button data-action="reset-demo">Restaurar dados de demonstração</button>
             </div>
           </div>
           <div id="adminOutput" class="output light"></div>
@@ -119,7 +118,7 @@
           <h2 id="monthlyTitle">Fevereiro 2027</h2>
           <div class="actions">
             <select id="monthSelector" aria-label="Mês"></select>
-            <button data-action="open-campus-event" data-permission="campus-events">Novo evento local</button>
+            <button data-action="open-campus-event" data-permission="campus-events">Novo evento do campus</button>
             <button class="primary" data-action="validate">Recalcular</button>
           </div>
         </div>
@@ -307,6 +306,24 @@
       </form>
     </dialog>
 
+    <dialog id="publishDialog">
+      <form method="dialog" id="publishForm">
+        <div class="modal-head">
+          <h2>Publicar calendário base</h2>
+          <button type="button" class="icon-button" data-action="close-publish">×</button>
+        </div>
+        <p class="notice warning">
+          <strong>Atenção:</strong> depois de publicado, o calendário base <strong>não pode mais ser alterado</strong>, nem pela Reitoria.
+          Confira todos os eventos (feriados, férias, planejamento e início e fim das aulas de cada semestre) antes de continuar.
+        </p>
+        <p class="hint">Com a base publicada, os campi passam a montar os próprios calendários. Feriados municipais continuam podendo ser incluídos pela Reitoria e pelos campi.</p>
+        <div class="modal-actions">
+          <button type="button" data-action="close-publish">Cancelar</button>
+          <button type="submit" class="primary">Publicar base</button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog id="reviewDialog">
       <form method="dialog" id="reviewForm">
         <div class="modal-head">
@@ -328,6 +345,7 @@
 
     <div id="toast" class="toast" role="status"></div>
     <script src="/campuses.js"></script>
+    <script src="/rules.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>
