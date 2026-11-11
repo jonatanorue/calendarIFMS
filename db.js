@@ -88,6 +88,12 @@ db.exec(`
   );
 `);
 
+// Ajustes em bancos criados por versões anteriores.
+if (!db.prepare("PRAGMA table_info(events)").all().some((column) => column.name === "swap_date")) {
+  db.exec("ALTER TABLE events ADD COLUMN swap_date TEXT");
+}
+db.prepare("UPDATE events SET type = 'Feriado Estadual' WHERE type = 'Feriado Estadual/Local'").run();
+
 const userColumns = "email, role, campus, created_at AS createdAt, created_by AS createdBy";
 
 function hashToken(token) {
@@ -158,8 +164,12 @@ function deleteSession(token) {
 }
 
 // Executa várias escritas como uma só: ou todas são gravadas, ou nenhuma.
+// Pode ser chamada dentro de outra transação; aí só a mais externa confirma.
+let transactionDepth = 0;
 function transaction(work) {
+  if (transactionDepth > 0) return work();
   db.exec("BEGIN");
+  transactionDepth += 1;
   try {
     const result = work();
     db.exec("COMMIT");
@@ -167,20 +177,22 @@ function transaction(work) {
   } catch (error) {
     db.exec("ROLLBACK");
     throw error;
+  } finally {
+    transactionDepth -= 1;
   }
 }
 
 const yearColumns = `id, start_date AS start, end_date AS end, base_published AS basePublished,
   final_published AS finalPublished, created_at AS createdAt, created_by AS createdBy`;
 const eventColumns = `id, type, title, start_date AS start, end_date AS end, scope, course, semester,
-  affects_school_day AS affectsSchoolDay, campus, updated_by AS updatedBy, updated_at AS updatedAt`;
+  affects_school_day AS affectsSchoolDay, campus, swap_date AS swapDate, updated_by AS updatedBy, updated_at AS updatedAt`;
 
 function toYear(row) {
   return row && { ...row, basePublished: Boolean(row.basePublished), finalPublished: Boolean(row.finalPublished) };
 }
 
 function toEvent(row) {
-  return row && { ...row, affectsSchoolDay: Boolean(row.affectsSchoolDay) };
+  return row && { ...row, affectsSchoolDay: Boolean(row.affectsSchoolDay), swapDate: row.swapDate || null };
 }
 
 function listYears() {
@@ -193,8 +205,8 @@ function getYear(id) {
 
 function insertEventRow(yearId, event, by) {
   db.prepare(
-    `INSERT INTO events (id, year_id, type, title, start_date, end_date, scope, course, semester, affects_school_day, campus, created_by, updated_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO events (id, year_id, type, title, start_date, end_date, scope, course, semester, affects_school_day, campus, swap_date, created_by, updated_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     event.id || crypto.randomUUID(),
     yearId,
@@ -207,6 +219,7 @@ function insertEventRow(yearId, event, by) {
     event.semester ?? null,
     event.affectsSchoolDay ? 1 : 0,
     event.campus || "",
+    event.swapDate || null,
     by,
     by,
   );
@@ -220,6 +233,16 @@ function createYear({ start, end }, events, campuses, by) {
     events.forEach((event) => insertEventRow(start, { ...event, id: crypto.randomUUID() }, by));
     return getYear(start);
   });
+}
+
+function updateYearPeriod(id, { start, end }) {
+  db.prepare("UPDATE academic_years SET start_date = ?, end_date = ? WHERE id = ?").run(start, end, id);
+  return getYear(id);
+}
+
+// Remove o ano com eventos, status e histórico (ON DELETE CASCADE). A auditoria é mantida.
+function deleteYear(id) {
+  db.prepare("DELETE FROM academic_years WHERE id = ?").run(id);
 }
 
 function setYearFlags(id, { basePublished, finalPublished }) {
@@ -245,9 +268,9 @@ function createEvent(yearId, event, by) {
 function updateEvent(yearId, id, event, by) {
   db.prepare(
     `UPDATE events SET type = ?, title = ?, start_date = ?, end_date = ?, scope = ?, course = ?, semester = ?,
-       affects_school_day = ?, campus = ?, updated_by = ?, updated_at = datetime('now')
+       affects_school_day = ?, campus = ?, swap_date = ?, updated_by = ?, updated_at = datetime('now')
      WHERE year_id = ? AND id = ?`,
-  ).run(event.type, event.title, event.start, event.end, event.scope, event.course || "", event.semester ?? null, event.affectsSchoolDay ? 1 : 0, event.campus || "", by, yearId, id);
+  ).run(event.type, event.title, event.start, event.end, event.scope, event.course || "", event.semester ?? null, event.affectsSchoolDay ? 1 : 0, event.campus || "", event.swapDate || null, by, yearId, id);
   return getEvent(yearId, id);
 }
 
@@ -294,6 +317,8 @@ module.exports = {
   listYears,
   getYear,
   createYear,
+  updateYearPeriod,
+  deleteYear,
   setYearFlags,
   listEvents,
   getEvent,

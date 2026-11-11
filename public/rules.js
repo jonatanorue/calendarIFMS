@@ -5,17 +5,18 @@ const calendarRules = (() => {
 
   // scope: quem é dono do evento. REITORIA = calendário base; CAMPUS = calendário do campus.
   // addableByReitoria: tipos do campus que a Reitoria também pode incluir para um campus.
+  // swap: troca de dia letivo; o dia do evento deixa de ser letivo e o swapDate passa a ser.
   const eventTypes = {
     "Férias Docentes": { color: "#facc15", scope: "REITORIA", alwaysNonSchoolDay: true },
     Planejamento: { color: "#f9a8d4", scope: "REITORIA", alwaysNonSchoolDay: true },
     "Feriado Nacional": { color: "#d1d5db", scope: "REITORIA", alwaysNonSchoolDay: true },
-    "Feriado Estadual/Local": { color: "#86efac", scope: "REITORIA", alwaysNonSchoolDay: true },
+    "Feriado Estadual": { color: "#86efac", scope: "REITORIA", alwaysNonSchoolDay: true },
     "Início/Fim de aulas Técnicas": { color: "#fb923c", scope: "REITORIA" },
     "Início/Fim de aulas Graduação": { color: "#c2410c", scope: "REITORIA" },
     "Feriado Municipal": { color: "#4ade80", scope: "CAMPUS", alwaysNonSchoolDay: true, addableByReitoria: true },
     Recesso: { color: "#60a5fa", scope: "CAMPUS", alwaysNonSchoolDay: true },
     "Sábado Letivo": { color: "#93c5fd", scope: "CAMPUS" },
-    "Troca de Dia Letivo": { color: "#bbf7d0", scope: "CAMPUS" },
+    "Troca de Dia Letivo": { color: "#bbf7d0", scope: "CAMPUS", swap: true },
     "Fechamento de Diários": { color: "#c084fc", scope: "CAMPUS" },
     "Entrega de Notas": { color: "#a855f7", scope: "CAMPUS" },
   };
@@ -35,7 +36,9 @@ const calendarRules = (() => {
 
   const semesters = [1, 2];
   const boundaryTypes = Object.values(courseRules).map((rule) => rule.boundaryType);
-  const blockingTypes = ["Férias Docentes", "Planejamento", "Feriado Nacional", "Feriado Estadual/Local", "Feriado Municipal", "Recesso"];
+  const blockingTypes = ["Férias Docentes", "Planejamento", "Feriado Nacional", "Feriado Estadual", "Feriado Municipal", "Recesso"];
+  // Nomes antigos de tipos, convertidos ao ler dados gravados antes da mudança.
+  const renamedTypes = { "Feriado Estadual/Local": "Feriado Estadual" };
   const editableStatuses = ["Em edição", "Rejeitado"];
 
   // Datas em UTC para dar o mesmo resultado no navegador e no servidor, em qualquer fuso.
@@ -79,8 +82,13 @@ const calendarRules = (() => {
     return { start: dates[0] || null, end: dates[dates.length - 1] || null };
   }
 
+  function isSwap(event) {
+    return Boolean(eventTypes[event.type]?.swap && event.swapDate);
+  }
+
   // Dias letivos de um curso em um semestre: dias permitidos entre o início e o fim das aulas
-  // daquele semestre, menos os eventos que bloqueiam e mais os que contam como dia letivo.
+  // daquele semestre, menos os eventos que bloqueiam, mais os que contam como dia letivo e,
+  // por último, as trocas (o dia original sai e o dia de reposição entra).
   function countCourseSchoolDays(events, course, semester) {
     const rule = courseRules[course];
     const dates = new Set();
@@ -95,8 +103,14 @@ const calendarRules = (() => {
       .filter((event) => !event.affectsSchoolDay && blockingTypes.includes(event.type) && appliesToCourse(event, course))
       .forEach((event) => dateRange(event.start, event.end).filter(inSemester).forEach((date) => dates.delete(date)));
     events
-      .filter((event) => event.affectsSchoolDay && appliesToCourse(event, course))
+      .filter((event) => !isSwap(event) && event.affectsSchoolDay && appliesToCourse(event, course))
       .forEach((event) => dateRange(event.start, event.end).filter(inSemester).forEach((date) => dates.add(date)));
+    events
+      .filter((event) => isSwap(event) && appliesToCourse(event, course))
+      .forEach((event) => {
+        if (inSemester(event.start)) dates.delete(event.start);
+        if (inSemester(event.swapDate)) dates.add(event.swapDate);
+      });
 
     return { total: dates.size, dates, start, end };
   }
@@ -119,6 +133,8 @@ const calendarRules = (() => {
     semesters,
     boundaryTypes,
     editableStatuses,
+    renamedTypes,
+    isSwap,
     weekday,
     dateRange,
     addDays,

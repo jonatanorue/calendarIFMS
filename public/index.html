@@ -59,6 +59,7 @@
           <select id="yearFilter" aria-label="Ano letivo"></select>
           <select id="campusFilter" aria-label="Campus"></select>
           <button data-action="open-init" data-permission="init-calendar">Novo ano letivo</button>
+          <button data-action="open-year" data-permission="init-calendar">Editar ano letivo</button>
           <button class="primary" data-action="publish-base" data-permission="publish-base">Publicar base</button>
           <span class="user-badge" id="userBadge"></span>
           <button data-action="logout">Sair</button>
@@ -227,7 +228,7 @@
           Título
           <input id="eventTitle" required maxlength="80" />
         </label>
-        <fieldset class="date-mode">
+        <fieldset class="date-mode" id="eventDateModeField">
           <legend>Período</legend>
           <label class="checkbox">
             <input type="radio" name="eventDateMode" value="single" checked />
@@ -247,6 +248,11 @@
             Fim
             <input id="eventEnd" type="date" required />
           </label>
+          <label id="eventSwapField" hidden>
+            Dia que passa a ser letivo
+            <input id="eventSwapDate" type="date" />
+            <small class="field-hint">Um sábado só repõe aula do Técnico: na Graduação o sábado já é letivo.</small>
+          </label>
         </div>
         <label>
           Curso
@@ -263,10 +269,11 @@
             <option value="2">2º semestre</option>
           </select>
         </label>
-        <label class="checkbox">
+        <label class="checkbox" id="eventAffectsSchoolDayField">
           <input id="eventAffectsSchoolDay" type="checkbox" />
           Conta como dia letivo
         </label>
+        <p class="notice warning" id="eventReopenHint" hidden></p>
         <div class="modal-actions">
           <button type="button" data-action="close-dialog">Cancelar</button>
           <button type="submit" class="primary">Salvar evento</button>
@@ -302,6 +309,35 @@
         <div class="modal-actions">
           <button type="button" data-action="close-init">Cancelar</button>
           <button type="submit" class="primary">Criar ano letivo</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="yearDialog">
+      <form method="dialog" id="yearForm">
+        <div class="modal-head">
+          <h2 id="yearDialogTitle">Editar ano letivo</h2>
+          <button type="button" class="icon-button" data-action="close-year">×</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            Data de início
+            <input id="yearStart" type="date" required />
+          </label>
+          <label>
+            Data de fim
+            <input id="yearEnd" type="date" required />
+          </label>
+        </div>
+        <p class="hint" id="yearPeriodHint">O período só pode ser corrigido antes de publicar a base, e todos os eventos precisam continuar dentro dele.</p>
+        <div class="modal-actions">
+          <button type="button" data-action="close-year">Cancelar</button>
+          <button type="submit" class="primary" id="yearSaveButton">Salvar período</button>
+        </div>
+        <div class="danger-zone" id="yearDeleteZone">
+          <strong>Excluir ano letivo</strong>
+          <p class="hint" id="yearDeleteHint">Remove o ano com todos os eventos, status e histórico de aprovação. A auditoria é mantida. Não pode ser desfeito.</p>
+          <button type="button" class="danger" id="yearDeleteButton" data-action="delete-year">Excluir ano letivo</button>
         </div>
       </form>
     </dialog>

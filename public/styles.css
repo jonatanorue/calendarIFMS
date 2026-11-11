@@ -828,3 +828,32 @@ body.signed-out .login-screen {
     grid-template-columns: 1fr;
   }
 }
+
+.danger-zone {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 8px;
+  padding-top: 14px;
+}
+
+.danger-zone .hint {
+  border-top: 0;
+  margin: 0;
+  padding: 0;
+}
+
+button.danger {
+  border-color: #fca5a5;
+  color: var(--red);
+  justify-self: start;
+}
+
+button.danger:hover {
+  background: #fef2f2;
+  border-color: var(--red);
+}
+
+.field-hint {
+  color: var(--muted);
+  font-weight: 400;
+}

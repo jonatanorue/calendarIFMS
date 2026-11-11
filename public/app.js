@@ -351,7 +351,7 @@ function renderAnnual() {
         return start.getFullYear() === month.year && start.getMonth() === month.month;
       });
       const eventHtml = monthEvents
-        .map((event) => `<div class="event ${escapeHtml(event.scope.toLowerCase())}" style="background:${escapeHtml(event.color)}">${escapeHtml(event.title)}<small>${escapeHtml(event.type)}</small></div>`)
+        .map((event) => `<div class="event ${escapeHtml(event.scope.toLowerCase())}" style="background:${escapeHtml(event.color)}">${escapeHtml(eventTitle(event))}<small>${escapeHtml(event.type)}</small></div>`)
         .join("");
       return `<article class="month"><strong>${month.short} ${month.year}</strong>${eventHtml || '<p class="empty">Sem eventos</p>'}</article>`;
     })
@@ -367,10 +367,13 @@ function renderMonthly() {
   const cells = [];
   const tecnicoDates = courseSchoolDates("Técnico");
   const graduationDates = courseSchoolDates("Graduação");
-  const monthEvents = selectedCampusEvents().filter((event) => {
-    const start = new Date(`${event.start}T00:00:00`);
-    return start.getFullYear() === month.year && start.getMonth() === month.month;
-  });
+  const monthStart = `${month.year}-${String(month.month + 1).padStart(2, "0")}-01`;
+  const monthEnd = `${month.year}-${String(month.month + 1).padStart(2, "0")}-${String(totalDays).padStart(2, "0")}`;
+  const inMonth = (date) => date >= monthStart && date <= monthEnd;
+  // Eventos que tocam o mês, inclusive os que começaram antes, e trocas com reposição no mês.
+  const monthEvents = selectedCampusEvents().filter(
+    (event) => (event.start <= monthEnd && event.end >= monthStart) || (event.swapDate && inMonth(event.swapDate)),
+  );
 
   ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].forEach((day) => cells.push(`<div class="weekday">${day}</div>`));
   for (let i = 0; i < offset; i += 1) cells.push('<div class="day muted"></div>');
@@ -380,10 +383,10 @@ function renderMonthly() {
       cells.push(`<div class="day muted"><div class="day-head"><strong>${day}</strong><span class="day-kind">Fora do período</span></div></div>`);
       continue;
     }
-    const eventsHtml = monthEvents
-      .filter((event) => dateRange(event.start, event.end).includes(iso))
-      .map((event) => eventMarkup(event))
-      .join("");
+    const eventsHtml = [
+      ...monthEvents.filter((event) => iso >= event.start && iso <= event.end).map((event) => eventMarkup(event)),
+      ...monthEvents.filter((event) => event.swapDate === iso).map((event) => eventMarkup(event, { replacement: true })),
+    ].join("");
     const tecnico = tecnicoDates.has(iso);
     const graduation = graduationDates.has(iso);
     const schoolDayClass = tecnico || graduation ? "school-day" : "non-school-day";
@@ -402,7 +405,12 @@ function renderMonthly() {
   renderMonthTotals(monthEvents);
 }
 
-function eventMarkup(event) {
+function eventTitle(event, { replacement = false } = {}) {
+  if (!event.swapDate) return event.title;
+  return replacement ? `${event.title} (reposição de ${formatDate(event.start)})` : `${event.title} → ${formatDate(event.swapDate)}`;
+}
+
+function eventMarkup(event, { replacement = false } = {}) {
   const editable = canEditEvent(event);
   const draggable = editable ? 'draggable="true"' : "";
   const actionButtons = editable
@@ -413,7 +421,7 @@ function eventMarkup(event) {
     : "";
   const origin = event.scope === "REITORIA" ? `Reitoria${event.campus ? ` · ${event.campus}` : ""}` : event.campus || "Campus";
   return `<div class="event ${escapeHtml(event.scope.toLowerCase())}" ${draggable} data-event-id="${escapeHtml(event.id)}" style="background:${escapeHtml(event.color)}">
-    <span>${escapeHtml(event.title)}</span>${actionButtons}<small>${escapeHtml(origin)}</small>
+    <span>${escapeHtml(eventTitle(event, { replacement }))}</span>${actionButtons}<small>${escapeHtml(origin)}</small>
   </div>`;
 }
 
@@ -557,7 +565,7 @@ function csvCell(value) {
 
 function downloadCsv() {
   const label = academicYearLabel();
-  const rows = [["Ano letivo", "Campus", "Tipo", "Título", "Início", "Fim", "Curso", "Semestre", "Conta como dia letivo", "Origem"]];
+  const rows = [["Ano letivo", "Campus", "Tipo", "Título", "Início", "Fim", "Dia de reposição", "Curso", "Semestre", "Conta como dia letivo", "Origem"]];
   scopedCampusEvents(false)
     .slice()
     .sort((first, second) => first.start.localeCompare(second.start))
@@ -569,6 +577,7 @@ function downloadCsv() {
         item.title,
         formatDate(item.start),
         formatDate(item.end),
+        item.swapDate ? formatDate(item.swapDate) : "",
         item.course || "Todos",
         item.semester ? `${item.semester}º` : "",
         item.affectsSchoolDay ? "Sim" : "Não",
@@ -753,7 +762,7 @@ function statusClass(status) {
 }
 
 function setEventDateBounds() {
-  ["eventStart", "eventEnd"].forEach((id) => {
+  ["eventStart", "eventEnd", "eventSwapDate"].forEach((id) => {
     const input = document.getElementById(id);
     input.min = year().calendar.start;
     input.max = year().calendar.end;
@@ -815,6 +824,7 @@ function openEventDialog(mode, date = year().calendar.start) {
     mode === "CAMPUS" ? "Novo evento do campus" : onlyMunicipal ? "Incluir feriado municipal" : "Incluir evento da Reitoria";
   syncEventCampusField(fallbackCampus(eventTypes[types[0]].scope));
   document.getElementById("eventTitle").value = "";
+  document.getElementById("eventSwapDate").value = "";
   setEventDateBounds();
   document.getElementById("eventStart").value = date;
   document.getElementById("eventEnd").value = date;
@@ -824,6 +834,7 @@ function openEventDialog(mode, date = year().calendar.start) {
   document.getElementById("eventAffectsSchoolDay").checked = false;
   document.getElementById("eventSemester").value = String(guessSemester(date));
   updateSchoolDayCheckbox();
+  updateReopenHint();
   document.getElementById("eventDialog").showModal();
 }
 
@@ -837,6 +848,7 @@ function openEditEventDialog(eventId) {
   document.getElementById("eventType").value = event.type;
   syncEventCampusField(event.campus);
   document.getElementById("eventTitle").value = event.title;
+  document.getElementById("eventSwapDate").value = event.swapDate || "";
   setEventDateBounds();
   document.getElementById("eventStart").value = event.start;
   document.getElementById("eventEnd").value = event.end;
@@ -846,6 +858,7 @@ function openEditEventDialog(eventId) {
   document.getElementById("eventAffectsSchoolDay").checked = event.affectsSchoolDay;
   document.getElementById("eventSemester").value = String(event.semester || 1);
   updateSchoolDayCheckbox();
+  updateReopenHint();
   document.getElementById("eventDialog").showModal();
 }
 
@@ -866,8 +879,13 @@ async function mutate(path, options = {}) {
 }
 
 function eventBody(event, overrides = {}) {
-  const { type, title, start, end, course, semester, affectsSchoolDay, campus } = { ...event, ...overrides };
-  return { type, title, start, end, course, semester, affectsSchoolDay, campus };
+  const { type, title, start, end, course, semester, affectsSchoolDay, campus, swapDate } = { ...event, ...overrides };
+  return { type, title, start, end, course, semester, affectsSchoolDay, campus, swapDate };
+}
+
+function withReopenNotice(result, message) {
+  const reopened = result?.reopened || [];
+  return reopened.length ? `${message} ${reopened.join(", ")} voltou para "Em edição" para revisar a mudança.` : message;
 }
 
 async function addEventFromForm(event) {
@@ -881,7 +899,14 @@ async function addEventFromForm(event) {
     showToast("Verifique as datas dentro do período acadêmico.");
     return;
   }
+  const isSwap = Boolean(eventTypes[document.getElementById("eventType").value]?.swap);
+  const swapDate = isSwap ? document.getElementById("eventSwapDate").value : null;
+  if (isSwap && (!swapDate || swapDate === start || !isInAcademicPeriod(swapDate))) {
+    showToast("Na troca, informe um dia de reposição diferente e dentro do período acadêmico.");
+    return;
+  }
   const body = {
+    swapDate,
     type: document.getElementById("eventType").value,
     title: document.getElementById("eventTitle").value.trim(),
     start,
@@ -896,13 +921,14 @@ async function addEventFromForm(event) {
     : await mutate("events", { body });
   if (!saved) return;
   document.getElementById("eventDialog").close();
-  showToast(editingEventId ? "Evento atualizado e contagem recalculada." : "Evento incluído e contagem recalculada.");
+  showToast(withReopenNotice(saved, editingEventId ? "Evento atualizado e contagem recalculada." : "Evento incluído e contagem recalculada."));
 }
 
 async function removeEvent(eventId) {
   const event = year().events.find((item) => item.id === eventId);
   if (!event || !canEditEvent(event)) return;
-  if (await mutate(`events/${encodeURIComponent(eventId)}`, { method: "DELETE" })) showToast("Evento removido e contagem recalculada.");
+  const removed = await mutate(`events/${encodeURIComponent(eventId)}`, { method: "DELETE" });
+  if (removed) showToast(withReopenNotice(removed, "Evento removido e contagem recalculada."));
 }
 
 async function moveEvent(eventId, newDate) {
@@ -918,7 +944,8 @@ async function moveEvent(eventId, newDate) {
     return;
   }
   const body = eventBody(event, { start: newDate, end: newEnd });
-  if (await mutate(`events/${encodeURIComponent(eventId)}`, { method: "PUT", body })) showToast("Evento movido e contagem recalculada.");
+  const moved = await mutate(`events/${encodeURIComponent(eventId)}`, { method: "PUT", body });
+  if (moved) showToast(withReopenNotice(moved, "Evento movido e contagem recalculada."));
 }
 
 function validateBeforeSubmit() {
@@ -1048,6 +1075,68 @@ async function toggleFinalPublication() {
   showToast(publish ? `Calendário final ${academicYearLabel()} publicado.` : "Calendário reaberto. Os eventos voltam a ser editáveis.");
 }
 
+let yearDeleteArmed = false;
+
+function canDeleteYear() {
+  if (isFinalPublished()) return false;
+  return !year().basePublished || state.role === "ADMIN";
+}
+
+function openYearDialog() {
+  const locked = year().basePublished;
+  document.getElementById("yearDialogTitle").textContent = `Editar ano letivo ${academicYearLabel()}`;
+  document.getElementById("yearStart").value = year().calendar.start;
+  document.getElementById("yearEnd").value = year().calendar.end;
+  ["yearStart", "yearEnd", "yearSaveButton"].forEach((id) => (document.getElementById(id).disabled = locked));
+  document.getElementById("yearPeriodHint").textContent = locked
+    ? "A base já foi publicada: o período não pode mais ser alterado."
+    : "O período só pode ser corrigido antes de publicar a base, e todos os eventos precisam continuar dentro dele.";
+  document.getElementById("yearDeleteZone").hidden = !canDeleteYear();
+  yearDeleteArmed = false;
+  document.getElementById("yearDeleteButton").textContent = "Excluir ano letivo";
+  document.getElementById("yearDialog").showModal();
+}
+
+async function saveYearPeriod(event) {
+  event.preventDefault();
+  const body = { start: document.getElementById("yearStart").value, end: document.getElementById("yearEnd").value };
+  if (body.end <= body.start) {
+    showToast("A data de fim deve ser posterior à data de início.");
+    return;
+  }
+  try {
+    await api(`/api/years/${encodeURIComponent(year().id)}`, { method: "PUT", body });
+    await loadYears();
+    await loadAudit();
+    document.getElementById("yearDialog").close();
+    render();
+    showToast(`Período atualizado: ${formatDate(body.start)} a ${formatDate(body.end)}.`);
+  } catch (error) {
+    showToast(error.message);
+  }
+}
+
+// Exclusão em dois cliques, para não apagar um ano por engano.
+async function deleteYear() {
+  if (!yearDeleteArmed) {
+    yearDeleteArmed = true;
+    document.getElementById("yearDeleteButton").textContent = `Confirmar exclusão de ${academicYearLabel()}`;
+    return;
+  }
+  const label = academicYearLabel();
+  try {
+    await api(`/api/years/${encodeURIComponent(year().id)}`, { method: "DELETE", body: {} });
+    state.activeYearId = "";
+    await loadYears();
+    await loadAudit();
+    document.getElementById("yearDialog").close();
+    render();
+    showToast(`Ano letivo ${label} excluído.`);
+  } catch (error) {
+    showToast(error.message);
+  }
+}
+
 function openPublishDialog() {
   if (year().basePublished) {
     showToast("O calendário base já está publicado.");
@@ -1064,7 +1153,7 @@ async function publishBase(event) {
 }
 
 // Ações que dependem de um ano letivo já criado.
-const actionsWithoutYear = ["open-init", "close-init", "logout", "manage-users", "edit-user", "remove-user", "cancel-user-edit", "close-dialog", "close-review", "close-publish"];
+const actionsWithoutYear = ["open-init", "close-init", "close-year", "logout", "manage-users", "edit-user", "remove-user", "cancel-user-edit", "close-dialog", "close-review", "close-publish"];
 
 document.addEventListener("click", (event) => {
   const action = event.target.dataset.action;
@@ -1086,6 +1175,9 @@ document.addEventListener("click", (event) => {
   if (action === "open-campus-event" && can("campus-events")) openEventDialog("CAMPUS");
   if (action === "close-dialog") document.getElementById("eventDialog").close();
   if (action === "open-init" && can("init-calendar")) openInitDialog();
+  if (action === "open-year" && can("init-calendar")) openYearDialog();
+  if (action === "close-year") document.getElementById("yearDialog").close();
+  if (action === "delete-year" && can("init-calendar")) deleteYear();
   if (action === "close-init") document.getElementById("initDialog").close();
   if (action === "publish-base" && can("publish-base")) openPublishDialog();
   if (action === "close-publish") document.getElementById("publishDialog").close();
@@ -1129,6 +1221,8 @@ document.getElementById("initForm").addEventListener("submit", initializeCalenda
 document.getElementById("initCopyFrom").addEventListener("change", updateInitCopyField);
 document.getElementById("reviewForm").addEventListener("submit", rejectFromForm);
 document.getElementById("publishForm").addEventListener("submit", publishBase);
+document.getElementById("yearForm").addEventListener("submit", saveYearPeriod);
+document.getElementById("eventCampus").addEventListener("change", updateReopenHint);
 document.getElementById("yearFilter").addEventListener("change", async (event) => {
   state.activeYearId = event.target.value;
   state.selectedMonthIndex = 0;
@@ -1169,6 +1263,7 @@ document.querySelectorAll('input[name="eventDateMode"]').forEach((input) => {
 document.getElementById("eventType").addEventListener("change", () => {
   updateSchoolDayCheckbox();
   syncEventCampusField();
+  updateReopenHint();
 });
 document.getElementById("eventStart").addEventListener("change", () => {
   if (document.querySelector('input[name="eventDateMode"]:checked').value === "single") {
@@ -1365,9 +1460,33 @@ function guessSemester(date) {
 
 function updateSchoolDayCheckbox() {
   const type = document.getElementById("eventType").value;
+  const swap = Boolean(eventTypes[type]?.swap);
   document.getElementById("eventSemesterField").hidden = !boundaryTypes.includes(type);
   const checkbox = document.getElementById("eventAffectsSchoolDay");
   const disabled = Boolean(eventTypes[type]?.alwaysNonSchoolDay);
   checkbox.disabled = disabled;
-  if (disabled) checkbox.checked = false;
+  if (disabled || swap) checkbox.checked = false;
+  // Troca: um dia deixa de ser letivo e outro passa a ser; não há período nem marcação manual.
+  document.getElementById("eventAffectsSchoolDayField").hidden = swap;
+  document.getElementById("eventDateModeField").hidden = swap;
+  document.getElementById("eventSwapField").hidden = !swap;
+  document.getElementById("eventSwapDate").required = swap;
+  if (swap) {
+    document.querySelector('input[name="eventDateMode"][value="single"]').checked = true;
+    updateDateMode();
+    document.getElementById("eventStartLabel").textContent = "Dia que deixa de ser letivo";
+  }
+}
+
+// Avisa a Reitoria quando salvar vai devolver um campus já enviado ou aprovado para edição.
+function updateReopenHint() {
+  const hint = document.getElementById("eventReopenHint");
+  const scope = eventTypes[document.getElementById("eventType").value]?.scope;
+  const campus = document.getElementById("eventCampus").value;
+  const status = year()?.campusStatus[campus]?.status;
+  const willReopen = state.role !== "CAMPUS" && scope === "CAMPUS" && ["Pendente", "Aprovado"].includes(status);
+  hint.hidden = !willReopen;
+  hint.textContent = willReopen
+    ? `O calendário de ${campus} está "${status}". Ao salvar, ele volta para "Em edição" para o campus revisar a contagem e enviar de novo.`
+    : "";
 }

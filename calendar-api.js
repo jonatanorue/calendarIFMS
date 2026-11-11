@@ -31,7 +31,10 @@ function yearLabel(year) {
 }
 
 function eventLabel(event) {
-  return `${event.title} (${formatDate(event.start)} a ${formatDate(event.end)} · ${event.campus || rules.allCampusesLabel})`;
+  const dates = event.swapDate
+    ? `${formatDate(event.start)} trocado por ${formatDate(event.swapDate)}`
+    : `${formatDate(event.start)} a ${formatDate(event.end)}`;
+  return `${event.title} (${dates} · ${event.campus || rules.allCampusesLabel})`;
 }
 
 function isValidDate(value) {
@@ -82,9 +85,17 @@ function validateEventInput(body, year, user) {
   const title = String(body.title || "").trim();
   if (!title || title.length > 80) throw new ApiError(400, "Informe um título com até 80 caracteres.");
   const start = String(body.start || "");
-  const end = String(body.end || "");
+  // A troca é sempre de um dia por outro.
+  const end = config.swap ? start : String(body.end || "");
   if (!isValidDate(start) || !isValidDate(end) || end < start) throw new ApiError(400, "Datas inválidas.");
   if (start < year.start || end > year.end) throw new ApiError(400, "As datas devem estar dentro do período do ano letivo.");
+  let swapDate = null;
+  if (config.swap) {
+    swapDate = String(body.swapDate || "");
+    if (!isValidDate(swapDate)) throw new ApiError(400, "Informe o dia que passa a ser letivo na troca.");
+    if (swapDate === start) throw new ApiError(400, "Na troca, o dia que passa a ser letivo deve ser diferente do dia que deixa de ser.");
+    if (swapDate < year.start || swapDate > year.end) throw new ApiError(400, "O dia de reposição deve estar dentro do período do ano letivo.");
+  }
   const course = String(body.course || "");
   if (!courses.includes(course)) throw new ApiError(400, "Curso inválido.");
 
@@ -104,8 +115,9 @@ function validateEventInput(body, year, user) {
     scope: config.scope,
     course,
     semester: rules.boundaryTypes.includes(type) ? (Number(body.semester) === 2 ? 2 : 1) : null,
-    affectsSchoolDay: config.alwaysNonSchoolDay ? false : Boolean(body.affectsSchoolDay),
+    affectsSchoolDay: config.alwaysNonSchoolDay || config.swap ? false : Boolean(body.affectsSchoolDay),
     campus,
+    swapDate,
   };
 }
 
@@ -144,8 +156,13 @@ function createYear(body, user) {
     const offset = Number(start.slice(0, 4)) - Number(source.start.slice(0, 4));
     const candidates = db.listEvents(source.id).filter((event) => body.includeCampusEvents || event.scope === "REITORIA");
     events = candidates
-      .map((event) => ({ ...event, start: shiftDate(event.start, offset), end: shiftDate(event.end, offset) }))
-      .filter((event) => event.start >= start && event.end <= end);
+      .map((event) => ({
+        ...event,
+        start: shiftDate(event.start, offset),
+        end: shiftDate(event.end, offset),
+        swapDate: event.swapDate ? shiftDate(event.swapDate, offset) : null,
+      }))
+      .filter((event) => event.start >= start && event.end <= end && (!event.swapDate || (event.swapDate >= start && event.swapDate <= end)));
     skipped = candidates.length - events.length;
   }
   const year = db.createYear({ start, end }, events, campuses, user.email);
@@ -216,13 +233,31 @@ function reviewCampus(year, user, campus, body) {
   audit(user, year, "Status alterado", `${campus}: ${current.status}`, `${campus}: ${next}${reason ? ` (${reason})` : ""}`);
 }
 
+// Quando a Reitoria mexe no calendário de um campus já enviado ou aprovado, o campus volta
+// para "Em edição": a mudança pode alterar a contagem de dias letivos e precisa ser revista.
+function reopenAfterReitoriaChange(year, user, campus, description) {
+  if (user.role === "CAMPUS" || !campus) return null;
+  const current = db.getCampusStatuses(year.id)[campus];
+  if (!current || !["Pendente", "Aprovado"].includes(current.status)) return null;
+  const reason = `Reaberto automaticamente: a Reitoria ${description}. Revise a contagem e envie novamente.`;
+  db.setCampusStatus(year.id, campus, { status: "Em edição", reason }, user.email);
+  audit(user, year, "Status alterado", `${campus}: ${current.status}`, `${campus}: Em edição (${reason})`);
+  return campus;
+}
+
 function writeEvent(year, user, method, eventId, body) {
+  const reopened = [];
+  const reopen = (campus, description) => {
+    const result = reopenAfterReitoriaChange(year, user, campus, description);
+    if (result) reopened.push(result);
+  };
   if (method === "POST") {
     const event = validateEventInput(body, year, user);
     assertCanWriteEvent(user, year, event, { isNew: true });
     const created = db.createEvent(year.id, event, user.email);
     audit(user, year, event.scope === "CAMPUS" ? "Evento do campus incluído" : "Evento da base incluído", "-", eventLabel(created));
-    return;
+    if (event.scope === "CAMPUS") reopen(event.campus, `incluiu "${created.title}" em ${formatDate(created.start)}`);
+    return reopened;
   }
   const existing = db.getEvent(year.id, eventId);
   if (!existing) throw new ApiError(404, "Evento não encontrado.");
@@ -231,13 +266,46 @@ function writeEvent(year, user, method, eventId, body) {
   if (method === "DELETE") {
     db.deleteEvent(year.id, eventId);
     audit(user, year, "Evento removido", eventLabel(existing), "-");
-    return;
+    if (existing.scope === "CAMPUS") reopen(existing.campus, `removeu "${existing.title}"`);
+    return reopened;
   }
   const event = validateEventInput(body, year, user);
   if (event.scope !== existing.scope) throw new ApiError(400, "Não é possível trocar um evento entre a base e o calendário do campus.");
   assertCanWriteEvent(user, year, event, { isNew: false });
   const updated = db.updateEvent(year.id, eventId, event, user.email);
   audit(user, year, "Evento alterado", eventLabel(existing), eventLabel(updated));
+  if (event.scope === "CAMPUS") {
+    reopen(existing.campus, `alterou "${existing.title}"`);
+    if (event.campus !== existing.campus) reopen(event.campus, `incluiu "${updated.title}" em ${formatDate(updated.start)}`);
+  }
+  return reopened;
+}
+
+// Corrigir o período só antes de publicar a base, e sem deixar eventos de fora.
+function updateYearPeriod(year, user, body) {
+  requireReitoria(user);
+  if (year.basePublished) throw new ApiError(409, "O período não pode ser alterado depois de publicada a base.");
+  const start = String(body.start || "");
+  const end = String(body.end || "");
+  if (!isValidDate(start) || !isValidDate(end) || end <= start) throw new ApiError(400, "A data de fim deve ser posterior à data de início.");
+  const overlapping = db.listYears().find((item) => item.id !== year.id && start <= item.end && end >= item.start);
+  if (overlapping) throw new ApiError(409, `O período se sobrepõe ao ano letivo ${yearLabel(overlapping)}.`);
+  const outside = db.listEvents(year.id).filter((event) => event.start < start || event.end > end || (event.swapDate && (event.swapDate < start || event.swapDate > end)));
+  if (outside.length) {
+    throw new ApiError(409, `${outside.length} evento(s) ficariam fora do novo período, por exemplo "${outside[0].title}" em ${formatDate(outside[0].start)}. Ajuste ou remova esses eventos antes.`);
+  }
+  db.updateYearPeriod(year.id, { start, end });
+  audit(user, year, "Período do ano letivo alterado", `${formatDate(year.start)} a ${formatDate(year.end)}`, `${formatDate(start)} a ${formatDate(end)}`);
+}
+
+// A Reitoria exclui enquanto a base não foi publicada; o Administrador, até a publicação final.
+function deleteYear(year, user) {
+  requireReitoria(user);
+  if (year.finalPublished) throw new ApiError(409, "Um ano com calendário final publicado não pode ser excluído.");
+  if (year.basePublished && user.role !== "ADMIN") throw new ApiError(409, "Depois de publicada a base, só o Administrador pode excluir o ano letivo.");
+  const total = db.listEvents(year.id).length;
+  db.deleteYear(year.id);
+  audit(user, year, "Ano letivo excluído", `${yearLabel(year)} · ${total} evento(s)`, "-");
 }
 
 // Rotas: /api/years, /api/years/:id, /api/years/:id/{publish-base,final,events[/:eventId],campus/:campus/{submit,review}}, /api/audit
@@ -272,6 +340,14 @@ async function handleCalendarApi(req, res, url, user, { sendJson, readJson }) {
   const respond = () => sendJson(res, 200, { year: yearPayload(year.id, user) });
 
   if (!resource && method === "GET") return respond();
+  if (!resource && method === "PUT") {
+    db.transaction(() => updateYearPeriod(year, user, body));
+    return respond();
+  }
+  if (!resource && method === "DELETE") {
+    db.transaction(() => deleteYear(year, user));
+    return sendJson(res, 200, { ok: true });
+  }
   if (resource === "publish-base" && method === "POST" && parts.length === 3) {
     db.transaction(() => publishBase(year, user));
     return respond();
@@ -281,8 +357,8 @@ async function handleCalendarApi(req, res, url, user, { sendJson, readJson }) {
     return respond();
   }
   if (resource === "events" && ((parts.length === 3 && method === "POST") || (parts.length === 4 && ["PUT", "DELETE"].includes(method)))) {
-    db.transaction(() => writeEvent(year, user, method, resourceId, body));
-    return respond();
+    const reopened = db.transaction(() => writeEvent(year, user, method, resourceId, body));
+    return sendJson(res, 200, { year: yearPayload(year.id, user), reopened });
   }
   if (resource === "campus" && parts.length === 5 && method === "POST" && campuses.includes(resourceId)) {
     if (subAction === "submit") {

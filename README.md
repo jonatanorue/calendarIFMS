@@ -26,6 +26,14 @@ Depois acesse:
 http://localhost:3001
 ```
 
+## Testes
+
+```bash
+npm test
+```
+
+Roda as regras de contagem de dias letivos e a API inteira (permissões, publicação, aprovação, trocas e anos letivos) contra um servidor com banco temporário. Não usa nem altera `data/calendar.db`.
+
 ## Docker
 
 Com o `.env` preenchido (`GOOGLE_CLIENT_ID` é obrigatório):
@@ -72,11 +80,12 @@ docker compose cp calendario:/app/data/calendar.db ./backup-calendar.db
 
 ## Funcionalidades já prototipadas
 
-- Vários anos letivos, criados pela Reitoria, com opção de copiar os eventos de um ano anterior.
+- Vários anos letivos, criados pela Reitoria, com opção de copiar os eventos de um ano anterior. O período pode ser corrigido e o ano excluído enquanto a base não foi publicada (depois disso, só o Administrador exclui, e nunca após a publicação final).
 - Lista dos 13 campi do IFMS em ordem alfabética.
 - Filtro por campus e por tipo de evento.
 - Eventos da Reitoria (calendário base) para todos os campi ou para um campus específico.
-- Eventos do campus, incluindo feriados municipais (cadastrados pela Reitoria ou pelo próprio campus).
+- Eventos do campus, incluindo feriados municipais (cadastrados pela Reitoria ou pelo próprio campus) e trocas de dia letivo (um dia deixa de ser letivo e outro passa a ser).
+- Se a Reitoria inclui, altera ou remove um evento de um campus já enviado ou aprovado, o campus volta para "Em edição" para revisar a contagem.
 - Inclusão de eventos por dia único ou intervalo de datas, inclusive com duplo clique no dia.
 - Visualização anual e mensal.
 - Arrastar e soltar eventos.
