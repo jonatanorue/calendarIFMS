@@ -22,11 +22,11 @@ const { eventTypes, courseRules, semesters, boundaryTypes, editableStatuses } = 
 const roles = {
   REITORIA: {
     label: "Reitoria",
-    permissions: ["init-calendar", "publish-base", "reitoria-events", "edit-any-event", "approve-calendar", "view-all-campi", "view-audit"],
+    permissions: ["init-calendar", "publish-base", "reitoria-events", "edit-any-event", "approve-calendar", "view-all-campi", "view-audit", "import-events"],
   },
   CAMPUS: {
     label: "Campus",
-    permissions: ["campus-events", "submit-calendar"],
+    permissions: ["campus-events", "submit-calendar", "import-events"],
   },
   ADMIN: {
     label: "Administrador (TI)",
@@ -41,6 +41,7 @@ const roles = {
       "view-all-campi",
       "view-audit",
       "manage-admin",
+      "import-events",
     ],
   },
 };
@@ -291,6 +292,11 @@ function applyPermissions() {
 function showView(viewId) {
   document.querySelectorAll("nav button").forEach((item) => item.classList.toggle("active", item.dataset.view === viewId));
   document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.id === viewId));
+  // No celular o menu é uma faixa que rola para o lado: mantém a opção ativa à vista e volta ao topo.
+  if (window.matchMedia("(max-width: 980px)").matches) {
+    document.querySelector("nav button.active")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    window.scrollTo({ top: 0 });
+  }
 }
 
 function renderFilters() {
@@ -929,6 +935,128 @@ function openCountDetail(course, semester) {
   document.getElementById("countDialog").showModal();
 }
 
+// --- Importação de planilha ---
+let importRows = [];
+
+function downloadFile(name, content, type) {
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([content], { type }));
+  link.download = name;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
+
+function openImportDialog() {
+  if (isFinalPublished()) {
+    showToast("O calendário final está publicado. Reabra-o na tela Aprovação para importar.");
+    return;
+  }
+  if (state.role === "CAMPUS" && !campusCanEdit(state.userCampus)) {
+    showToast(year().basePublished ? "O calendário do campus não está em edição." : "Aguarde a Reitoria publicar o calendário base.");
+    return;
+  }
+  importRows = [];
+  document.getElementById("importFile").value = "";
+  document.getElementById("importSummary").hidden = true;
+  document.getElementById("importPreview").hidden = true;
+  document.getElementById("importSubmit").disabled = true;
+  document.getElementById("importSubmit").textContent = "Importar";
+  document.getElementById("importDialog").showModal();
+}
+
+// Além das regras da planilha, antecipa as permissões que o servidor vai conferir.
+function permissionProblem(event) {
+  const config = eventTypes[event.type];
+  if (!config) return "";
+  if (config.scope === "REITORIA") {
+    if (!can("reitoria-events")) return "só a Reitoria inclui eventos da base";
+    if (year().basePublished) return "a base já foi publicada";
+  } else if (state.role === "REITORIA" && !config.addableByReitoria) {
+    return "no calendário do campus, a Reitoria inclui só feriado municipal e ajuste de horário";
+  }
+  return "";
+}
+
+async function readImportFile() {
+  const file = document.getElementById("importFile").files[0];
+  if (!file) return;
+  const summary = document.getElementById("importSummary");
+  const text = await file.text();
+  const result = calendarImport.rowsToEvents(calendarImport.parseCsv(text), {
+    eventTypes,
+    boundaryTypes,
+    campuses,
+    courses: Object.keys(courseRules),
+    calendar: year().calendar,
+    role: state.role,
+    userCampus: state.userCampus,
+    existing: year().events,
+  });
+  summary.hidden = false;
+  if (result.problems.length) {
+    summary.className = "notice warning";
+    summary.textContent = result.problems.join(" ");
+    document.getElementById("importPreview").hidden = true;
+    document.getElementById("importSubmit").disabled = true;
+    return;
+  }
+  importRows = result.events.map((row) => {
+    const extra = row.errors.length ? "" : permissionProblem(row.event);
+    return { ...row, errors: extra ? [...row.errors, extra] : row.errors };
+  });
+  renderImportPreview();
+}
+
+function renderImportPreview() {
+  const valid = importRows.filter((row) => !row.errors.length && !row.duplicate && !row.repeated).length;
+  const invalid = importRows.filter((row) => row.errors.length).length;
+  const skipped = importRows.length - valid - invalid;
+  document.getElementById("importRows").innerHTML = importRows
+    .map((row, index) => {
+      const ok = !row.errors.length && !row.duplicate && !row.repeated;
+      const status = row.errors.length
+        ? `<span class="import-error">${escapeHtml(row.errors.join("; "))}</span>`
+        : row.duplicate ? "Já existe no ano" : row.repeated ? "Repetido na planilha" : '<span class="import-ok">Pronto</span>';
+      const date = row.event.start ? formatDate(row.event.start) + (row.event.end && row.event.end !== row.event.start ? ` a ${formatDate(row.event.end)}` : "") : "-";
+      return `<tr class="${ok ? "" : "muted-row"}">
+        <td><input type="checkbox" data-import="${index}" ${ok ? "checked" : "disabled"} aria-label="Importar linha ${row.line}" /></td>
+        <td>${row.line}</td>
+        <td>${escapeHtml(date)}</td>
+        <td>${escapeHtml(row.event.type || "-")}</td>
+        <td>${escapeHtml(row.event.title)}</td>
+        <td>${escapeHtml(row.event.campus || allCampuses)}</td>
+        <td>${status}</td>
+      </tr>`;
+    })
+    .join("");
+  const summary = document.getElementById("importSummary");
+  summary.className = invalid ? "notice warning" : "notice";
+  summary.textContent = `${importRows.length} linha(s): ${valid} pronta(s) para importar` +
+    (invalid ? `, ${invalid} com erro (corrija na planilha e escolha o arquivo de novo)` : "") +
+    (skipped ? `, ${skipped} já existente(s) ou repetida(s)` : "") + ".";
+  document.getElementById("importPreview").hidden = false;
+  updateImportButton();
+}
+
+function updateImportButton() {
+  const selected = document.querySelectorAll("#importRows input[data-import]:checked").length;
+  const button = document.getElementById("importSubmit");
+  button.disabled = selected === 0 || selected > 500;
+  button.textContent = selected > 500 ? "Máximo de 500 eventos por vez" : `Importar ${selected} evento(s)`;
+}
+
+async function importEvents(event) {
+  event.preventDefault();
+  const selected = [...document.querySelectorAll("#importRows input[data-import]:checked")].map((input) => importRows[Number(input.dataset.import)].event);
+  if (!selected.length) return;
+  const saved = await mutate("events/batch", { body: { events: selected } });
+  if (!saved) return;
+  document.getElementById("importDialog").close();
+  showToast(withReopenNotice(saved, `${selected.length} evento(s) importado(s).`));
+}
+
 let holidaySuggestions = [];
 
 function openHolidayDialog() {
@@ -1343,7 +1471,7 @@ async function publishBase(event) {
 }
 
 // Ações que dependem de um ano letivo já criado.
-const actionsWithoutYear = ["open-init", "close-init", "close-year", "close-history", "close-count", "close-holidays", "logout", "manage-users", "edit-user", "remove-user", "cancel-user-edit", "close-dialog", "close-review", "close-publish"];
+const actionsWithoutYear = ["open-init", "close-init", "close-year", "close-import", "close-history", "close-count", "close-holidays", "logout", "manage-users", "edit-user", "remove-user", "cancel-user-edit", "close-dialog", "close-review", "close-publish"];
 
 document.addEventListener("click", (event) => {
   const action = event.target.dataset.action;
@@ -1371,6 +1499,9 @@ document.addEventListener("click", (event) => {
   if (action === "count-detail") openCountDetail(event.target.dataset.course, Number(event.target.dataset.semester));
   if (action === "close-count") document.getElementById("countDialog").close();
   if (action === "open-holidays" && can("reitoria-events")) openHolidayDialog();
+  if (action === "open-import" && can("import-events")) openImportDialog();
+  if (action === "close-import") document.getElementById("importDialog").close();
+  if (action === "download-template") downloadFile("modelo-calendario-ifms.csv", calendarImport.templateCsv(), "text/csv;charset=utf-8");
   if (action === "close-holidays") document.getElementById("holidayDialog").close();
   if (action === "close-year") document.getElementById("yearDialog").close();
   if (action === "delete-year" && can("init-calendar")) deleteYear();
@@ -1420,6 +1551,9 @@ document.getElementById("reviewForm").addEventListener("submit", rejectFromForm)
 document.getElementById("publishForm").addEventListener("submit", publishBase);
 document.getElementById("yearForm").addEventListener("submit", saveYearPeriod);
 document.getElementById("holidayForm").addEventListener("submit", addHolidays);
+document.getElementById("importForm").addEventListener("submit", importEvents);
+document.getElementById("importFile").addEventListener("change", () => readImportFile().catch((error) => showToast(error.message)));
+document.getElementById("importRows").addEventListener("change", updateImportButton);
 document.getElementById("eventSearch").addEventListener("input", () => year() && renderEvents());
 document.getElementById("eventListType").addEventListener("change", () => year() && renderEvents());
 document.getElementById("eventCampus").addEventListener("change", updateReopenHint);

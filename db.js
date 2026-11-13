@@ -332,6 +332,12 @@ function databaseInfo() {
   };
 }
 
+// Apaga registros de auditoria mais antigos que o prazo definido (em dias). 0 mantém tudo.
+function purgeAudit(days) {
+  if (!days || days <= 0) return 0;
+  return Number(db.prepare("DELETE FROM audit WHERE at < datetime('now', ?)").run(`-${Math.floor(days)} days`).changes);
+}
+
 // Cópia consistente do banco num arquivo novo, mesmo com o sistema em uso.
 function backupTo(file) {
   db.prepare("VACUUM INTO ?").run(file);
@@ -341,6 +347,7 @@ module.exports = {
   databasePath,
   databaseInfo,
   backupTo,
+  purgeAudit,
   transaction,
   listYears,
   getYear,

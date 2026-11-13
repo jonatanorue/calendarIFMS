@@ -18,6 +18,8 @@ const devLogin = process.env.DEV_LOGIN === "1" && !isProduction;
 const cookieSecure = process.env.COOKIE_SECURE === "1";
 const trustProxy = process.env.TRUST_PROXY === "1";
 const sessionMaxAgeSeconds = 8 * 60 * 60;
+// Prazo de guarda da auditoria (LGPD). 0 ou vazio: mantém todos os registros.
+const auditRetentionDays = Math.max(0, Number(process.env.AUDIT_RETENTION_DAYS) || 0);
 // O prefixo __Host- impede que subdomínios definam ou sobrescrevam o cookie (exige Secure).
 const sessionCookie = cookieSecure ? "__Host-calendar_session" : "calendar_session";
 const roles = ["REITORIA", "CAMPUS", "ADMIN"];
@@ -343,7 +345,14 @@ function serveStatic(req, res, url) {
   if (req.method !== "GET" && req.method !== "HEAD") return sendText(res, 405, "Método não permitido");
   const cleanUrl = safeDecode(url.pathname);
   if (cleanUrl === null || cleanUrl.includes("\0")) return sendText(res, 400, "Requisição inválida");
-  const aliases = { "/": "/index.html", "/publico": "/publico.html", "/impressao": "/impressao.html", "/ajuda": "/ajuda.html" };
+  const aliases = {
+    "/": "/index.html",
+    "/publico": "/publico.html",
+    "/impressao": "/impressao.html",
+    "/ajuda": "/ajuda.html",
+    "/privacidade": "/privacidade.html",
+    "/favicon.ico": "/favicon.svg",
+  };
   const requestedPath = aliases[cleanUrl] || cleanUrl;
   const filePath = path.normalize(path.join(publicDir, requestedPath));
 
@@ -402,6 +411,14 @@ server.listen(port, () => {
   console.log(`Calendar IFMS prototype running at http://localhost:${port}`);
   if (!googleClientId) console.warn("GOOGLE_CLIENT_ID não definido: o login com Google ficará indisponível.");
   if (devLogin) console.warn("DEV_LOGIN=1: login sem Google habilitado. Use apenas em desenvolvimento.");
+  if (auditRetentionDays) {
+    const runPurge = () => {
+      const removed = db.purgeAudit(auditRetentionDays);
+      if (removed) console.log(`Auditoria: ${removed} registro(s) com mais de ${auditRetentionDays} dias removido(s).`);
+    };
+    runPurge();
+    setInterval(runPurge, 24 * 60 * 60 * 1000).unref();
+  }
   const storage = storageCheck(db.databasePath);
   if (storage.persistent === false) console.warn(`ATENÇÃO: ${storage.reason} Monte um volume persistente nessa pasta.`);
 });

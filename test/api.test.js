@@ -250,6 +250,7 @@ test("feriados em lote: tudo ou nada", async () => {
     { type: "Feriado Nacional", title: "Fora do ano", start: "2031-01-01", end: "2031-01-01" },
   ] });
   assert.equal(bad.status, 400);
+  assert.match(bad.data.error, /^Evento 2 \("Fora do ano"\): .*Nada foi gravado\.$/, "diz qual evento foi recusado");
   assert.equal((await as.reitoria("GET", "/api/years/2029-02-01")).data.year.events.length, 0, "nada foi gravado");
   const holidays = rules.holidaysInPeriod("2029-02-01", "2030-01-31");
   const ok = await as.reitoria("POST", batchUrl, { events: holidays.map((holiday) => ({ type: holiday.type, title: holiday.title, start: holiday.date, end: holiday.date })) });
@@ -303,6 +304,10 @@ test("tipos informativos e títulos longos, como no calendário oficial", async 
   const guide = await fetch(`${base}/ajuda`);
   assert.equal(guide.status, 200, "guia abre sem login");
   assert.match(await guide.text(), /Guia de uso para a Reitoria e os campi/);
+  assert.equal((await fetch(`${base}/privacidade`)).status, 200, "aviso de privacidade sem login");
+  const icon = await fetch(`${base}/favicon.ico`);
+  assert.equal(icon.status, 200);
+  assert.match(icon.headers.get("content-type"), /image\/svg\+xml/);
 });
 
 test("situação e cópia do banco: só o Administrador", async () => {
@@ -334,6 +339,18 @@ test("situação e cópia do banco: só o Administrador", async () => {
   copy.close();
   const audit = await as.reitoria("GET", "/api/audit");
   assert.ok(audit.data.some((entry) => entry.action === "Cópia do banco baixada" && entry.user === "admin@ifms.edu.br"));
+});
+
+test("prazo de guarda da auditoria apaga só os registros antigos", () => {
+  const { DatabaseSync } = require("node:sqlite");
+  const file = path.join(dataDir, "auditoria.db");
+  const probe = new DatabaseSync(file);
+  probe.exec("CREATE TABLE audit (id INTEGER PRIMARY KEY, at TEXT NOT NULL, action TEXT)");
+  probe.prepare("INSERT INTO audit (at, action) VALUES (datetime('now', '-400 days'), 'antigo'), (datetime('now', '-10 days'), 'recente')").run();
+  probe.close();
+  const script = `process.env.DATABASE_PATH = ${JSON.stringify(file)}; const db = require(${JSON.stringify(path.join(__dirname, "..", "db.js"))}); console.log(db.purgeAudit(365), db.purgeAudit(0));`;
+  const output = require("node:child_process").execFileSync(process.execPath, ["-e", script], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  assert.equal(output.trim(), "1 0", "remove 1 registro com mais de 365 dias; com 0 não remove nada");
 });
 
 test("endereços inválidos não derrubam o servidor", async () => {

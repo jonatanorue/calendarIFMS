@@ -29,7 +29,8 @@ http://localhost:3001
 ## Testes
 
 ```bash
-npm test
+npm test          # regras, importação, armazenamento e API (servidor e banco temporários)
+npm run test:ui   # telas no Chrome sem janela, inclusive no tamanho de celular (pulado se não houver Chrome)
 ```
 
 Roda as regras de contagem de dias letivos e a API inteira (permissões, publicação, aprovação, trocas e anos letivos) contra um servidor com banco temporário. Não usa nem altera `data/calendar.db`.
@@ -66,6 +67,7 @@ docker compose cp calendario:/app/data/calendar.db ./backup-calendar.db
 
 - Login só com conta Google do domínio `ifms.edu.br` (claim `hd` do token, configurável em `GOOGLE_HOSTED_DOMAIN`) e cadastrada no banco.
 - O token do Google é validado no servidor (assinatura, emissor, Client ID, validade e e-mail verificado).
+- **Privacidade (LGPD)**: aviso em `/privacidade`, sem login (texto a validar pelo encarregado de dados do IFMS). O prazo de guarda da auditoria é definido em `AUDIT_RETENTION_DAYS` (em dias; vazio ou 0 mantém tudo). Com prazo definido, o servidor apaga os registros mais antigos ao iniciar e uma vez por dia.
 - Sessão em cookie `HttpOnly`, `SameSite=Lax` e, com `COOKIE_SECURE=1`, `Secure` com prefixo `__Host-`; o banco guarda só o hash do token.
 - Escritas na API exigem JSON (proteção contra CSRF) e há limite de 20 tentativas de login a cada 5 minutos por IP.
 - Cabeçalhos de segurança: CSP, `X-Frame-Options`, `nosniff`, `Referrer-Policy` e HSTS (com `COOKIE_SECURE=1`).
@@ -94,6 +96,7 @@ docker compose cp calendario:/app/data/calendar.db ./backup-calendar.db
 - Publicação da base (depois de publicada, não pode mais ser alterada), envio, aprovação, rejeição com motivo e publicação do calendário final.
 - Relatórios em CSV, comparação entre campi e impressão paisagem.
 - Auditoria gravada pelo servidor.
+- **Importar planilha** (CSV): a planilha exportada pelo sistema ou o modelo baixado na janela de importação. Mostra uma prévia com o erro de cada linha e o que já existe no ano; grava tudo ou nada, com as mesmas regras do cadastro manual.
 - Tela **Eventos**: todos os eventos do ano em tabela, com busca e filtro por tipo.
 - **Detalhe da contagem**: em cada semestre, os dias descontados e acrescentados (e por qual evento) e os dias letivos por mês.
 - **Conferência do calendário**: avisos de semestre sem início/fim, semestres sobrepostos, sábado letivo fora do sábado, eventos que não alteram a contagem, duplicados e trocas que não repõem aula. Aparecem no Dashboard e antes de publicar a base.

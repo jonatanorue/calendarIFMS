@@ -1014,3 +1014,166 @@ nav .nav-link:focus-visible {
   background: #1f3d2d;
   border-color: #2d5b42;
 }
+
+.import-table td {
+  font-size: 13px;
+}
+
+.import-error {
+  color: var(--red);
+}
+
+.import-ok {
+  color: #166534;
+  font-weight: 700;
+}
+
+/* Aviso de privacidade */
+.privacy-text {
+  display: grid;
+  gap: 12px;
+  line-height: 1.6;
+  max-width: 70ch;
+}
+
+.privacy-text h1 {
+  font-size: 26px;
+  margin: 8px 0 0;
+}
+
+.privacy-text h2 {
+  font-size: 19px;
+  margin: 14px 0 0;
+}
+
+.privacy-text p,
+.privacy-text ul {
+  margin: 0;
+}
+
+.privacy-text ul {
+  display: grid;
+  gap: 6px;
+  padding-left: 22px;
+}
+
+/* Celular e tablet: menu vira uma faixa fixa no topo, com as opções lado a lado,
+   para o conteúdo aparecer logo na primeira tela. */
+@media (max-width: 980px) {
+  /* A coluna não pode crescer para caber o menu inteiro: o menu rola dentro da própria faixa. */
+  body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sidebar {
+    min-width: 0;
+    align-items: center;
+    display: flex;
+    gap: 12px;
+    padding: calc(env(safe-area-inset-top, 0px) + 8px) 12px 8px;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+
+  .sidebar .brand {
+    flex: none;
+    margin-bottom: 0;
+  }
+
+  .sidebar .brand > div {
+    display: none;
+  }
+
+  .sidebar .brand-mark {
+    height: 34px;
+    width: 34px;
+  }
+
+  nav {
+    display: flex;
+    gap: 4px;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  nav button,
+  nav .nav-link {
+    flex: none;
+    margin-top: 0;
+    min-height: 34px;
+    padding: 0 12px;
+    white-space: nowrap;
+  }
+
+  main {
+    padding: 16px;
+  }
+}
+
+.mobile-only {
+  display: none;
+}
+
+/* Calendário mensal no celular: sete colunas estreitas, só cor, selos T/G e o nome do evento. */
+@media (max-width: 600px) {
+  .mobile-only {
+    display: block;
+  }
+
+  #monthGrid .weekday {
+    font-size: 12px;
+    padding: 6px 2px;
+    text-align: center;
+  }
+
+  #monthGrid .day {
+    min-height: 64px;
+    min-width: 0;
+    padding: 4px 3px;
+  }
+
+  #monthGrid .day-kind,
+  #monthGrid .event small,
+  #monthGrid .event-actions {
+    display: none;
+  }
+
+  #monthGrid .day-head strong {
+    font-size: 13px;
+  }
+
+  #monthGrid .day-badges {
+    gap: 2px;
+    margin-top: 2px;
+    min-height: 0;
+  }
+
+  #monthGrid .day-badge {
+    font-size: 9px;
+    height: 14px;
+    width: 14px;
+  }
+
+  #monthGrid .event {
+    border-radius: 4px;
+    font-size: 10px;
+    line-height: 1.2;
+    margin-top: 3px;
+    overflow: hidden;
+    padding: 2px 3px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #monthGrid .event span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}

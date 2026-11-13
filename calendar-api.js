@@ -282,10 +282,19 @@ function writeEvent(year, user, method, eventId, body) {
 }
 
 // Vários eventos de uma vez (feriados sugeridos): ou todos entram, ou nenhum.
+// Usado pelos feriados sugeridos e pela importação de planilha.
 function writeEventBatch(year, user, body) {
   const list = Array.isArray(body.events) ? body.events : [];
-  if (!list.length || list.length > 100) throw new ApiError(400, "Envie de 1 a 100 eventos.");
-  return list.flatMap((item) => writeEvent(year, user, "POST", null, item));
+  if (!list.length || list.length > 500) throw new ApiError(400, "Envie de 1 a 500 eventos.");
+  return list.flatMap((item, index) => {
+    try {
+      return writeEvent(year, user, "POST", null, item);
+    } catch (error) {
+      if (!(error instanceof ApiError)) throw error;
+      const title = String(item?.title || "").slice(0, 60);
+      throw new ApiError(error.status, `Evento ${index + 1}${title ? ` ("${title}")` : ""}: ${error.message} Nada foi gravado.`);
+    }
+  });
 }
 
 // Corrigir o período só antes de publicar a base, e sem deixar eventos de fora.

@@ -1,4 +1,8 @@
-FROM node:24-alpine
+# Imagem do Node. Para builds reproduzíveis, fixe a versão testada com o digest, por exemplo:
+#   docker build --build-arg NODE_IMAGE=node:24-alpine@sha256:<digest> .
+# (o digest aparece em "docker pull node:24-alpine" ou "docker images --digests").
+ARG NODE_IMAGE=node:24-alpine
+FROM ${NODE_IMAGE}
 
 ENV NODE_ENV=production \
     PORT=3001 \

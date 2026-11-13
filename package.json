@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "node --env-file-if-exists=.env server.js",
-    "test": "node --test --test-concurrency=1 \"test/**/*.test.js\""
+    "test": "node --test --test-concurrency=1 \"test/*.test.js\"",
+    "test:ui": "node --test --test-concurrency=1 \"test/ui/*.test.js\""
   }
 }

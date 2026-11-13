@@ -18,6 +18,8 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-1}
       # Use 1 quando houver proxy reverso, para o limite de login usar o IP real (X-Forwarded-For).
       TRUST_PROXY: ${TRUST_PROXY:-1}
+      # Prazo de guarda da auditoria em dias (LGPD). Vazio mantém todos os registros.
+      AUDIT_RETENTION_DAYS: ${AUDIT_RETENTION_DAYS:-}
       # DEV_LOGIN não é repassado de propósito, e o servidor o recusa com NODE_ENV=production.
     volumes:
       - calendario-data:/app/data

@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Calendário Acadêmico IFMS</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body class="signed-out">
@@ -26,7 +27,7 @@
           <button type="submit">Entrar sem Google</button>
         </form>
         <p class="login-message" id="loginMessage" role="alert"></p>
-        <p class="hint"><a href="/publico">Ver os calendários finais publicados</a> (sem login) · <a href="/ajuda">Como usar o sistema</a></p>
+        <p class="hint"><a href="/publico">Ver os calendários finais publicados</a> (sem login) · <a href="/ajuda">Como usar o sistema</a> · <a href="/privacidade">Privacidade</a></p>
       </div>
     </section>
 
@@ -119,6 +120,7 @@
           <div class="actions">
             <button data-action="open-reitoria-event" data-permission="reitoria-events">Incluir evento da Reitoria</button>
             <button data-action="open-holidays" data-permission="reitoria-events">Sugerir feriados</button>
+            <button data-action="open-import" data-permission="import-events">Importar planilha</button>
             <button data-action="duplicate" data-permission="init-calendar">Duplicar para novo ano</button>
             <button data-action="simulate">Simular</button>
             <button class="primary" data-action="submit" data-permission="submit-calendar">Enviar aprovação</button>
@@ -160,6 +162,7 @@
             <button class="primary" data-action="validate">Recalcular</button>
           </div>
         </div>
+        <p class="notice mobile-only">No celular, os eventos aparecem resumidos. Toque duas vezes num dia para incluir um evento; para editar ou remover, use a tela <strong>Eventos</strong>.</p>
         <div class="month-layout">
           <div class="calendar-grid" id="monthGrid"></div>
           <aside class="panel">
@@ -208,10 +211,12 @@
         <div class="section-head">
           <h2>Auditoria</h2>
         </div>
-        <table>
+        <div class="table-scroll">
+          <table>
           <thead><tr><th>Usuário</th><th>Data/Hora</th><th>Alteração</th><th>Anterior</th><th>Novo</th></tr></thead>
           <tbody id="auditRows"></tbody>
         </table>
+        </div>
       </section>
 
       <section id="users" class="view">
@@ -243,10 +248,12 @@
             </div>
           </form>
         </section>
-        <table>
+        <div class="table-scroll">
+          <table>
           <thead><tr><th>E-mail</th><th>Perfil</th><th>Campus</th><th>Cadastrado em</th><th>Cadastrado por</th><th>Ações</th></tr></thead>
           <tbody id="userRows"></tbody>
         </table>
+        </div>
       </section>
     </main>
 
@@ -451,6 +458,37 @@
       </form>
     </dialog>
 
+    <dialog id="importDialog" class="wide-dialog">
+      <form method="dialog" id="importForm">
+        <div class="modal-head">
+          <h2>Importar planilha</h2>
+          <button type="button" class="icon-button" data-action="close-import">×</button>
+        </div>
+        <p class="hint">
+          Use um arquivo <strong>CSV</strong> (no Excel: Arquivo → Salvar como → CSV). Serve a planilha exportada pelo próprio sistema, de outro ano,
+          ou o modelo abaixo. Colunas obrigatórias: <strong>Tipo</strong>, <strong>Título</strong> e <strong>Início</strong>; datas no formato dd/mm/aaaa.
+        </p>
+        <div class="actions">
+          <button type="button" data-action="download-template">Baixar modelo de planilha</button>
+        </div>
+        <label>
+          Arquivo CSV
+          <input id="importFile" type="file" accept=".csv,text/csv" />
+        </label>
+        <p class="notice" id="importSummary" hidden></p>
+        <div class="table-scroll" id="importPreview" hidden>
+          <table class="import-table">
+            <thead><tr><th></th><th>Linha</th><th>Data</th><th>Tipo</th><th>Título</th><th>Campus</th><th>Situação</th></tr></thead>
+            <tbody id="importRows"></tbody>
+          </table>
+        </div>
+        <div class="modal-actions">
+          <button type="button" data-action="close-import">Cancelar</button>
+          <button type="submit" class="primary" id="importSubmit" disabled>Importar</button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog id="reviewDialog">
       <form method="dialog" id="reviewForm">
         <div class="modal-head">
@@ -473,6 +511,7 @@
     <div id="toast" class="toast" role="status"></div>
     <script src="/campuses.js"></script>
     <script src="/rules.js"></script>
+    <script src="/import.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>
