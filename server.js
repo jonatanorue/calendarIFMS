@@ -302,7 +302,7 @@ function serveStatic(req, res, url) {
   if (req.method !== "GET" && req.method !== "HEAD") return sendText(res, 405, "Método não permitido");
   const cleanUrl = safeDecode(url.pathname);
   if (cleanUrl === null || cleanUrl.includes("\0")) return sendText(res, 400, "Requisição inválida");
-  const aliases = { "/": "/index.html", "/publico": "/publico.html" };
+  const aliases = { "/": "/index.html", "/publico": "/publico.html", "/impressao": "/impressao.html" };
   const requestedPath = aliases[cleanUrl] || cleanUrl;
   const filePath = path.normalize(path.join(publicDir, requestedPath));
 

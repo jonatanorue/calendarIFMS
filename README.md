@@ -99,6 +99,8 @@ docker compose cp calendario:/app/data/calendar.db ./backup-calendar.db
 - **Sugerir feriados**: feriados nacionais (inclusive Carnaval, Paixão e Corpus Christi) e o feriado estadual de MS do período, incluídos de uma vez.
 - **Histórico** de envios, aprovações e rejeições de cada campus.
 - **Calendário público** em `/publico`, sem login, com os calendários finais publicados e arquivo `.ics` para importar no Google Agenda.
+- **Calendário oficial (PDF)** em `/impressao?ano=…&campus=…`: reproduz o modelo do IFMS em folhas A4 (lista por mês separada por semestre, com dias letivos, e calendário colorido com a legenda oficial). Abre pela tela Relatórios ou pela página pública; salve com "Salvar como PDF" na janela de impressão.
+- Tipos informativos, que não alteram a contagem: **Ajuste de horário**, **Prazo ou atividade** (base) e **Atividade do campus**.
 
 ## Dados
 

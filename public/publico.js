@@ -46,6 +46,7 @@ async function showYear() {
   const query = campus ? `?campus=${encodeURIComponent(campus)}` : "";
   const data = await getJson(`/api/public/years/${encodeURIComponent(yearId)}${query}`);
   document.getElementById("icsLink").href = `/api/public/years/${encodeURIComponent(yearId)}/calendario.ics${query}`;
+  document.getElementById("pdfLink").href = `/impressao?ano=${encodeURIComponent(yearId)}${campus ? `&campus=${encodeURIComponent(campus)}` : ""}`;
   document.getElementById("publicHint").textContent =
     `Ano letivo ${yearLabel(data.calendar)} · ${campus ? `Campus ${campus}` : allCampusesLabel} · ${formatDate(data.calendar.start)} a ${formatDate(data.calendar.end)}. ` +
     "Para acompanhar no celular, baixe o arquivo .ics e importe no Google Agenda ou no calendário do seu aparelho.";

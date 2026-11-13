@@ -180,7 +180,8 @@
         </div>
         <p class="hint" id="reportScope"></p>
         <div class="grid three">
-          <button class="report" data-action="print">Imprimir calendário anual<small>Use "Salvar como PDF" na janela de impressão</small></button>
+          <button class="report" data-action="official-pdf">Calendário oficial (PDF)<small>No formato do IFMS: lista por semestre e calendário colorido</small></button>
+          <button class="report" data-action="print">Imprimir tela anual<small>Use "Salvar como PDF" na janela de impressão</small></button>
           <button class="report" data-action="excel">Baixar planilha (CSV)<small>Abre no Excel e no LibreOffice</small></button>
           <button class="report" data-action="compare" data-permission="view-all-campi">Comparar campi<small>Dias letivos por semestre e status</small></button>
         </div>
@@ -255,7 +256,7 @@
         </label>
         <label>
           Título
-          <input id="eventTitle" required maxlength="80" />
+          <input id="eventTitle" required maxlength="200" />
         </label>
         <fieldset class="date-mode" id="eventDateModeField">
           <legend>Período</legend>

@@ -83,7 +83,7 @@ function validateEventInput(body, year, user) {
   const config = rules.eventTypes[type];
   if (!config) throw new ApiError(400, "Tipo de evento inválido.");
   const title = String(body.title || "").trim();
-  if (!title || title.length > 80) throw new ApiError(400, "Informe um título com até 80 caracteres.");
+  if (!title || title.length > 200) throw new ApiError(400, "Informe um título com até 200 caracteres.");
   const start = String(body.start || "");
   // A troca é sempre de um dia por outro.
   const end = config.swap ? start : String(body.end || "");
@@ -115,7 +115,7 @@ function validateEventInput(body, year, user) {
     scope: config.scope,
     course,
     semester: rules.boundaryTypes.includes(type) ? (Number(body.semester) === 2 ? 2 : 1) : null,
-    affectsSchoolDay: config.alwaysNonSchoolDay || config.swap ? false : Boolean(body.affectsSchoolDay),
+    affectsSchoolDay: config.alwaysNonSchoolDay || config.swap || config.informational ? false : Boolean(body.affectsSchoolDay),
     campus,
     swapDate,
   };

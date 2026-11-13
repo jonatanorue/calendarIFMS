@@ -634,6 +634,14 @@ function renderComparison() {
     </div>`;
 }
 
+// Calendário no formato oficial do IFMS, numa aba própria pronta para salvar em PDF.
+function openOfficialPrint() {
+  const campus = currentCampus();
+  const query = new URLSearchParams({ ano: year().id });
+  if (campus !== allCampuses) query.set("campus", campus);
+  window.open(`/impressao?${query}`, "_blank", "noopener");
+}
+
 function printAnnual() {
   document.getElementById("printSubtitle").textContent =
     `${scopeLabel()} · Período letivo ${formatDate(year().calendar.start)} a ${formatDate(year().calendar.end)} · Gerado em ${nowLabel()} por ${currentUser.email}`;
@@ -1386,6 +1394,7 @@ document.addEventListener("click", (event) => {
     showToast("Validações recalculadas.");
   }
   if (action === "print") printAnnual();
+  if (action === "official-pdf") openOfficialPrint();
   if (action === "excel") downloadCsv();
   if (action === "compare" && can("view-all-campi")) renderComparison();
   if (action === "logout") logout();
@@ -1655,9 +1664,11 @@ function updateSchoolDayCheckbox() {
   const checkbox = document.getElementById("eventAffectsSchoolDay");
   const disabled = Boolean(eventTypes[type]?.alwaysNonSchoolDay);
   checkbox.disabled = disabled;
-  if (disabled || swap) checkbox.checked = false;
+  const informational = Boolean(eventTypes[type]?.informational);
+  if (disabled || swap || informational) checkbox.checked = false;
   // Troca: um dia deixa de ser letivo e outro passa a ser; não há período nem marcação manual.
-  document.getElementById("eventAffectsSchoolDayField").hidden = swap;
+  // Tipos informativos (prazos, atividades, ajuste de horário) não mexem na contagem.
+  document.getElementById("eventAffectsSchoolDayField").hidden = swap || informational;
   document.getElementById("eventDateModeField").hidden = swap;
   document.getElementById("eventSwapField").hidden = !swap;
   document.getElementById("eventSwapDate").required = swap;

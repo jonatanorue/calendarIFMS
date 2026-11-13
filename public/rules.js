@@ -6,6 +6,7 @@ const calendarRules = (() => {
   // scope: quem é dono do evento. REITORIA = calendário base; CAMPUS = calendário do campus.
   // addableByReitoria: tipos do campus que a Reitoria também pode incluir para um campus.
   // swap: troca de dia letivo; o dia do evento deixa de ser letivo e o swapDate passa a ser.
+  // informational: só informa (prazos, atividades, ajuste de horário); não altera a contagem.
   const eventTypes = {
     "Férias Docentes": { color: "#facc15", scope: "REITORIA", alwaysNonSchoolDay: true },
     Planejamento: { color: "#f9a8d4", scope: "REITORIA", alwaysNonSchoolDay: true },
@@ -19,6 +20,9 @@ const calendarRules = (() => {
     "Troca de Dia Letivo": { color: "#bbf7d0", scope: "CAMPUS", swap: true },
     "Fechamento de Diários": { color: "#c084fc", scope: "CAMPUS" },
     "Entrega de Notas": { color: "#a855f7", scope: "CAMPUS" },
+    "Ajuste de horário": { color: "#a7d9b2", scope: "CAMPUS", informational: true, addableByReitoria: true },
+    "Prazo ou atividade": { color: "#cbd5e1", scope: "REITORIA", informational: true },
+    "Atividade do campus": { color: "#e2e8f0", scope: "CAMPUS", informational: true },
   };
 
   const courseRules = {

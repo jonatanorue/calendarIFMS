@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Calendário Acadêmico IFMS — versão para impressão</title>
+    <link rel="stylesheet" href="/impressao.css" />
+  </head>
+  <body>
+    <div class="toolbar no-print">
+      <button type="button" id="printButton" disabled>Imprimir / salvar em PDF</button>
+      <span id="status">Carregando o calendário…</span>
+      <small>Na janela de impressão, escolha <strong>Salvar como PDF</strong>, papel <strong>A4</strong> e margens <strong>Nenhuma</strong>.</small>
+    </div>
+    <div id="pages"></div>
+    <script src="/campuses.js"></script>
+    <script src="/rules.js"></script>
+    <script src="/impressao.js"></script>
+  </body>
+</html>

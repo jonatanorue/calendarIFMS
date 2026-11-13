@@ -136,3 +136,15 @@ test("conferência sem problemas", () => {
   ]);
   assert.deepEqual(rules.reviewWarnings(complete), []);
 });
+
+test("tipos informativos (prazos, atividades, ajuste de horário) não alteram a contagem", () => {
+  const informational = ["Ajuste de horário", "Prazo ou atividade", "Atividade do campus"].map((type) => ({
+    type,
+    title: type,
+    start: "2027-03-02",
+    end: "2027-03-12",
+    affectsSchoolDay: true,
+  }));
+  assert.equal(rules.countCourseSchoolDays([...tecnico1, ...informational.map((event) => ({ ...event, affectsSchoolDay: false }))], "Técnico", 1).total, 100);
+  for (const type of ["Ajuste de horário", "Prazo ou atividade", "Atividade do campus"]) assert.equal(rules.eventTypes[type].informational, true);
+});

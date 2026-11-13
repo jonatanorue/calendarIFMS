@@ -284,6 +284,21 @@ test("auditoria: gravada no servidor e restrita à Reitoria", async () => {
   }
 });
 
+test("tipos informativos e títulos longos, como no calendário oficial", async () => {
+  const draft = await as.reitoria("POST", "/api/years", { start: "2030-02-01", end: "2031-01-31" });
+  assert.equal(draft.status, 201);
+  const title = "Início das aulas do 1º semestre letivo de 2030 para os estudantes ingressantes dos cursos de Graduação";
+  assert.ok(title.length > 80);
+  const created = await as.reitoria("POST", "/api/years/2030-02-01/events", { type: "Prazo ou atividade", title, start: "2030-02-10", end: "2030-02-10", affectsSchoolDay: true });
+  assert.equal(created.status, 200);
+  assert.equal(created.data.year.events[0].affectsSchoolDay, false, "prazo nunca conta como dia letivo");
+  assert.equal((await as.reitoria("POST", "/api/years/2030-02-01/events", { type: "Prazo ou atividade", title: "x".repeat(201), start: "2030-02-10", end: "2030-02-10" })).status, 400);
+  const adjust = await as.reitoria("POST", "/api/years/2030-02-01/events", { type: "Ajuste de horário", title: "Ajuste referente à sexta-feira", start: "2030-03-18", end: "2030-03-18", campus: "Coxim" });
+  assert.equal(adjust.status, 200, "a Reitoria inclui ajuste de horário para um campus");
+  assert.equal((await as.reitoria("DELETE", "/api/years/2030-02-01", {})).status, 200);
+  assert.equal((await fetch(`${base}/impressao`)).status, 200);
+});
+
 test("endereços inválidos não derrubam o servidor", async () => {
   assert.equal((await as.reitoria("GET", "/api/years/%E0")).status, 400);
   assert.equal((await fetch(`${base}/%E0`)).status, 400);
