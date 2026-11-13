@@ -14,6 +14,7 @@ const categoryByType = {
   "Feriado Municipal": "local",
   "Férias Docentes": "ferias",
   Recesso: "recesso",
+  "Recesso institucional": "recesso",
   Planejamento: "planejamento",
   "Início/Fim de aulas Técnicas": "aulas",
   "Início/Fim de aulas Graduação": "aulas",

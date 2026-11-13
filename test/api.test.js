@@ -293,6 +293,9 @@ test("tipos informativos e títulos longos, como no calendário oficial", async 
   assert.equal(created.status, 200);
   assert.equal(created.data.year.events[0].affectsSchoolDay, false, "prazo nunca conta como dia letivo");
   assert.equal((await as.reitoria("POST", "/api/years/2030-02-01/events", { type: "Prazo ou atividade", title: "x".repeat(201), start: "2030-02-10", end: "2030-02-10" })).status, 400);
+  const recess = await as.reitoria("POST", "/api/years/2030-02-01/events", { type: "Recesso institucional", title: "Carnaval - Recesso", start: "2030-03-06", end: "2030-03-06" });
+  assert.equal(recess.status, 200, "a Reitoria lança recesso na base");
+  assert.equal(recess.data.year.events.find((event) => event.type === "Recesso institucional").campus, "", "vale para todos os campi");
   const adjust = await as.reitoria("POST", "/api/years/2030-02-01/events", { type: "Ajuste de horário", title: "Ajuste referente à sexta-feira", start: "2030-03-18", end: "2030-03-18", campus: "Coxim" });
   assert.equal(adjust.status, 200, "a Reitoria inclui ajuste de horário para um campus");
   assert.equal((await as.reitoria("DELETE", "/api/years/2030-02-01", {})).status, 200);

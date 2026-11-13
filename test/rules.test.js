@@ -43,6 +43,13 @@ test("semestre sem início ou fim não conta dias", () => {
   assert.equal(rules.meetsSchoolDayRules(tecnico1), false);
 });
 
+test("recesso institucional (da base) é dia não letivo para todos os campi", () => {
+  assert.equal(rules.eventTypes["Recesso institucional"].scope, "REITORIA");
+  const recess = { type: "Recesso institucional", title: "Carnaval - Recesso", start: "2027-02-10", end: "2027-02-10" };
+  assert.equal(rules.countCourseSchoolDays([...tecnico1, recess], "Técnico", 1).total, 99);
+  assert.equal(rules.eventsForCampus([recess], "Coxim").length, 1);
+});
+
 test("feriado municipal é dia não letivo", () => {
   const events = [...tecnico1, { type: "Feriado Municipal", title: "x", start: "2027-03-02", end: "2027-03-02", campus: "Coxim" }];
   assert.equal(rules.countCourseSchoolDays(events, "Técnico", 1).total, 99);

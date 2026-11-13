@@ -12,6 +12,8 @@ const calendarRules = (() => {
     Planejamento: { color: "#f9a8d4", scope: "REITORIA", alwaysNonSchoolDay: true },
     "Feriado Nacional": { color: "#d1d5db", scope: "REITORIA", alwaysNonSchoolDay: true },
     "Feriado Estadual": { color: "#86efac", scope: "REITORIA", alwaysNonSchoolDay: true },
+    // Recesso que vale para todos os campi (ex.: Carnaval, emenda de feriado); o Recesso do campus continua existindo.
+    "Recesso institucional": { color: "#3b82f6", scope: "REITORIA", alwaysNonSchoolDay: true },
     "Início/Fim de aulas Técnicas": { color: "#fb923c", scope: "REITORIA" },
     "Início/Fim de aulas Graduação": { color: "#c2410c", scope: "REITORIA" },
     "Feriado Municipal": { color: "#4ade80", scope: "CAMPUS", alwaysNonSchoolDay: true, addableByReitoria: true },
@@ -40,7 +42,7 @@ const calendarRules = (() => {
 
   const semesters = [1, 2];
   const boundaryTypes = Object.values(courseRules).map((rule) => rule.boundaryType);
-  const blockingTypes = ["Férias Docentes", "Planejamento", "Feriado Nacional", "Feriado Estadual", "Feriado Municipal", "Recesso"];
+  const blockingTypes = ["Férias Docentes", "Planejamento", "Feriado Nacional", "Feriado Estadual", "Feriado Municipal", "Recesso", "Recesso institucional"];
   // Nomes antigos de tipos, convertidos ao ler dados gravados antes da mudança.
   const renamedTypes = { "Feriado Estadual/Local": "Feriado Estadual" };
   const editableStatuses = ["Em edição", "Rejeitado"];
