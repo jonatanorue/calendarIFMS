@@ -1509,14 +1509,25 @@ document.addEventListener("drop", (event) => {
 });
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
-    method: options.method || "GET",
-    headers: { "Content-Type": "application/json" },
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
-  const data = await response.json().catch(() => ({}));
+  let response;
+  try {
+    response = await fetch(path, {
+      method: options.method || "GET",
+      headers: { "Content-Type": "application/json" },
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+  } catch {
+    throw new Error(`Sem conexão com o servidor (${path}). Verifique a internet ou a VPN e tente de novo.`);
+  }
+  const data = await response.json().catch(() => null);
   if (response.status === 401 && currentUser) showLogin("Sua sessão expirou. Entre novamente.");
-  if (!response.ok) throw new Error(data.error || "Erro ao comunicar com o servidor.");
+  if (!response.ok) {
+    if (data?.error) throw new Error(data.error);
+    // Resposta que não veio do sistema (proxy, firewall ou servidor fora do ar): mostra o código para a TI.
+    const hint = response.status >= 500 ? " O servidor ou o proxy está indisponível." : " A resposta não veio do sistema (proxy ou firewall).";
+    throw new Error(`Erro ${response.status} ao acessar ${path}.${hint} Informe este código à TI.`);
+  }
+  if (data === null) throw new Error(`Resposta inesperada de ${path}: não veio do sistema. Informe à TI.`);
   return data;
 }
 
