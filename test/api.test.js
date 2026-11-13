@@ -214,6 +214,51 @@ test("calendário final: só com todos aprovados, e trava tudo", async () => {
   assert.equal((await as.reitoria("POST", `${Y}/final`, { published: false })).data.year.finalPublished, false);
 });
 
+test("calendário público: só o final publicado, sem e-mails, com .ics", async () => {
+  assert.deepEqual(await (await fetch(`${base}/api/public/years`)).json(), [], "nada publicado ainda");
+  assert.equal((await fetch(`${base}/api/public/years/2027-02-01`)).status, 404);
+  assert.equal((await as.reitoria("POST", `${Y}/final`, { published: true })).status, 200);
+
+  const years = await (await fetch(`${base}/api/public/years`)).json();
+  assert.deepEqual(years.map((year) => year.id), ["2027-02-01"]);
+  const all = await (await fetch(`${base}/api/public/years/2027-02-01`)).json();
+  assert.ok(all.events.length > 0);
+  assert.equal(JSON.stringify(all).includes("@ifms.edu.br"), false, "não expõe quem editou");
+  const coxim = await (await fetch(`${base}/api/public/years/2027-02-01?campus=Coxim`)).json();
+  assert.ok(coxim.events.every((event) => !event.campus || event.campus === "Coxim"));
+  assert.equal((await fetch(`${base}/api/public/years/2027-02-01?campus=Xyz`)).status, 400);
+
+  const ics = await fetch(`${base}/api/public/years/2027-02-01/calendario.ics?campus=Coxim`);
+  assert.equal(ics.status, 200);
+  assert.match(ics.headers.get("content-type"), /text\/calendar/);
+  assert.match(ics.headers.get("content-disposition"), /calendario-ifms-2027-2028-coxim\.ics/);
+  const text = await ics.text();
+  assert.ok(text.startsWith("BEGIN:VCALENDAR\r\n") && text.trimEnd().endsWith("END:VCALENDAR"));
+  assert.ok(text.includes("DTSTART;VALUE=DATE:20270208"), "início das aulas técnicas");
+  assert.ok(text.includes("(reposição de 02/03/2027)"), "a troca gera o dia de reposição");
+  assert.ok(text.split("\r\n").every((line) => Buffer.byteLength(line, "utf8") <= 75), "linhas dobradas em 75 bytes");
+  assert.equal((await fetch(`${base}/api/public/years`, { method: "POST" })).status, 405);
+  assert.equal((await fetch(`${base}/publico`)).status, 200);
+});
+
+test("feriados em lote: tudo ou nada", async () => {
+  const draft = await as.reitoria("POST", "/api/years", { start: "2029-02-01", end: "2030-01-31" });
+  assert.equal(draft.status, 201);
+  const batchUrl = "/api/years/2029-02-01/events/batch";
+  const bad = await as.reitoria("POST", batchUrl, { events: [
+    { type: "Feriado Nacional", title: "Tiradentes", start: "2029-04-21", end: "2029-04-21" },
+    { type: "Feriado Nacional", title: "Fora do ano", start: "2031-01-01", end: "2031-01-01" },
+  ] });
+  assert.equal(bad.status, 400);
+  assert.equal((await as.reitoria("GET", "/api/years/2029-02-01")).data.year.events.length, 0, "nada foi gravado");
+  const holidays = rules.holidaysInPeriod("2029-02-01", "2030-01-31");
+  const ok = await as.reitoria("POST", batchUrl, { events: holidays.map((holiday) => ({ type: holiday.type, title: holiday.title, start: holiday.date, end: holiday.date })) });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.data.year.events.length, holidays.length);
+  assert.equal((await as.coxim("POST", batchUrl, { events: [{ type: "Feriado Nacional", title: "x", start: "2029-04-21", end: "2029-04-21" }] })).status, 403);
+  assert.equal((await as.reitoria("DELETE", "/api/years/2029-02-01", {})).status, 200);
+});
+
 test("novo ano copia a base deslocada, inclusive a reposição das trocas", async () => {
   const response = await as.reitoria("POST", "/api/years", { start: "2028-02-01", end: "2029-01-31", copyFrom: "2027-02-01", includeCampusEvents: true });
   assert.equal(response.status, 201);

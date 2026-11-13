@@ -81,3 +81,58 @@ test("troca para um sábado não repõe nada na Graduação, onde o sábado já 
   const swap = { type: "Troca de Dia Letivo", title: "Troca", start: "2027-03-02", end: "2027-03-02", swapDate: "2027-03-06" };
   assert.equal(rules.countCourseSchoolDays([...graduacao, swap], "Graduação", 1).total, 99);
 });
+
+test("contagem explica o que cada evento tirou e acrescentou", () => {
+  const holiday = { type: "Feriado Nacional", title: "Feriado", start: "2027-03-02", end: "2027-03-02" };
+  const saturday = { type: "Sábado Letivo", title: "Sábado", start: "2027-03-06", end: "2027-03-06", affectsSchoolDay: true };
+  const result = rules.countCourseSchoolDays([...tecnico1, holiday, saturday], "Técnico", 1);
+  assert.equal(result.base, 100);
+  assert.deepEqual(result.removed.map((entry) => [entry.date, entry.event.title]), [["2027-03-02", "Feriado"]]);
+  assert.deepEqual(result.added.map((entry) => [entry.date, entry.event.title]), [["2027-03-06", "Sábado"]]);
+  assert.equal(result.total, result.base - result.removed.length + result.added.length);
+});
+
+test("Páscoa e feriados móveis", () => {
+  assert.equal(rules.easterDate(2025), "2025-04-20");
+  assert.equal(rules.easterDate(2027), "2027-03-28");
+  assert.equal(rules.easterDate(2028), "2028-04-16");
+  const holidays = rules.nationalHolidays(2027);
+  const find = (title) => holidays.find((holiday) => holiday.title.startsWith(title))?.date;
+  assert.equal(find("Paixão"), "2027-03-26");
+  assert.equal(find("Corpus Christi"), "2027-05-27");
+  assert.deepEqual(holidays.filter((holiday) => holiday.title.startsWith("Carnaval")).map((holiday) => holiday.date), ["2027-02-08", "2027-02-09"]);
+  assert.equal(holidays.find((holiday) => holiday.date === "2027-10-11").type, "Feriado Estadual");
+});
+
+test("feriados de um período que atravessa o ano civil", () => {
+  const list = rules.holidaysInPeriod("2027-02-01", "2028-01-31");
+  assert.equal(list[0].date, "2027-02-08");
+  assert.equal(list.at(-1).date, "2028-01-01");
+  assert.equal(list.some((holiday) => holiday.date === "2027-01-01"), false);
+});
+
+test("conferência aponta os problemas comuns", () => {
+  const warnings = rules.reviewWarnings([
+    ...tecnico1,
+    { type: "Sábado Letivo", title: "Sábado errado", start: "2027-03-03", end: "2027-03-03", affectsSchoolDay: true },
+    { type: "Sábado Letivo", title: "Fora", start: "2027-12-18", end: "2027-12-18", affectsSchoolDay: true, course: "Técnico" },
+    { type: "Feriado Nacional", title: "A", start: "2027-04-21", end: "2027-04-21" },
+    { type: "Feriado Nacional", title: "B", start: "2027-04-21", end: "2027-04-21" },
+    { type: "Troca de Dia Letivo", title: "Troca no domingo", start: "2027-03-07", end: "2027-03-07", swapDate: "2027-03-13" },
+  ]);
+  const has = (text) => warnings.some((warning) => warning.includes(text));
+  assert.ok(has("Técnico 2º semestre: falta cadastrar"));
+  assert.ok(has("Graduação 1º semestre: falta cadastrar"));
+  assert.ok(has('"Sábado errado"') && has("não cai num sábado"));
+  assert.ok(has('"Fora"') && has("não altera a contagem"));
+  assert.ok(has('Há mais de um "Feriado Nacional"'));
+  assert.ok(has("Troca no domingo") && has("já não era dia letivo"));
+});
+
+test("conferência sem problemas", () => {
+  const complete = Object.keys(rules.courseRules).flatMap((course) => [
+    ...boundaries(course, 1, "2027-02-08"),
+    ...boundaries(course, 2, "2027-08-02"),
+  ]);
+  assert.deepEqual(rules.reviewWarnings(complete), []);
+});

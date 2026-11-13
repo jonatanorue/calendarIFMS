@@ -281,6 +281,13 @@ function writeEvent(year, user, method, eventId, body) {
   return reopened;
 }
 
+// Vários eventos de uma vez (feriados sugeridos): ou todos entram, ou nenhum.
+function writeEventBatch(year, user, body) {
+  const list = Array.isArray(body.events) ? body.events : [];
+  if (!list.length || list.length > 100) throw new ApiError(400, "Envie de 1 a 100 eventos.");
+  return list.flatMap((item) => writeEvent(year, user, "POST", null, item));
+}
+
 // Corrigir o período só antes de publicar a base, e sem deixar eventos de fora.
 function updateYearPeriod(year, user, body) {
   requireReitoria(user);
@@ -356,6 +363,10 @@ async function handleCalendarApi(req, res, url, user, { sendJson, readJson }) {
     db.transaction(() => setFinalPublication(year, user, Boolean(body.published)));
     return respond();
   }
+  if (resource === "events" && resourceId === "batch" && parts.length === 4 && method === "POST") {
+    const reopened = db.transaction(() => writeEventBatch(year, user, body));
+    return sendJson(res, 200, { year: yearPayload(year.id, user), reopened: [...new Set(reopened)] });
+  }
   if (resource === "events" && ((parts.length === 3 && method === "POST") || (parts.length === 4 && ["PUT", "DELETE"].includes(method)))) {
     const reopened = db.transaction(() => writeEvent(year, user, method, resourceId, body));
     return sendJson(res, 200, { year: yearPayload(year.id, user), reopened });
@@ -373,4 +384,108 @@ async function handleCalendarApi(req, res, url, user, { sendJson, readJson }) {
   throw new ApiError(404, "Rota não encontrada.");
 }
 
-module.exports = { handleCalendarApi, ApiError, audit };
+// --- Calendário público: só anos com calendário final publicado, sem dados de quem editou. ---
+
+const publicEventFields = ({ id, type, title, start, end, course, semester, campus, swapDate }) => ({ id, type, title, start, end, course, semester, campus, swapDate });
+
+function publishedYear(id) {
+  const year = db.getYear(id);
+  if (!year || !year.finalPublished) throw new ApiError(404, "Calendário publicado não encontrado.");
+  return year;
+}
+
+function icsText(value) {
+  return String(value).replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+}
+
+// Linhas do iCalendar têm no máximo 75 bytes; o restante continua na linha seguinte com um espaço.
+function foldIcsLine(line) {
+  const bytes = Buffer.from(line, "utf8");
+  if (bytes.length <= 75) return line;
+  const parts = [];
+  let current = "";
+  for (const char of line) {
+    if (Buffer.byteLength(current + char, "utf8") > (parts.length ? 74 : 75)) {
+      parts.push(current);
+      current = "";
+    }
+    current += char;
+  }
+  parts.push(current);
+  return parts.join("\r\n ");
+}
+
+function buildIcs(year, events, campus) {
+  const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const compact = (isoDate) => isoDate.replace(/-/g, "");
+  const scope = campus ? `Campus ${campus}` : rules.allCampusesLabel;
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//IFMS//Calendario Academico//PT-BR",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    `X-WR-CALNAME:${icsText(`Calendário IFMS ${yearLabel(year)} - ${scope}`)}`,
+  ];
+  const vevent = (uid, date, endExclusive, summary, description) => {
+    lines.push(
+      "BEGIN:VEVENT",
+      `UID:${uid}@calendario.ifms.edu.br`,
+      `DTSTAMP:${stamp}`,
+      `DTSTART;VALUE=DATE:${compact(date)}`,
+      `DTEND;VALUE=DATE:${compact(endExclusive)}`,
+      `SUMMARY:${icsText(summary)}`,
+      `DESCRIPTION:${icsText(description)}`,
+      "TRANSP:TRANSPARENT",
+      "END:VEVENT",
+    );
+  };
+  events.forEach((event) => {
+    const where = event.campus || rules.allCampusesLabel;
+    const course = event.course ? ` · ${event.course}` : "";
+    if (event.swapDate) {
+      vevent(`${event.id}-origem`, event.start, rules.addDays(event.start, 1), `${event.title} (sem aula; reposição em ${formatDate(event.swapDate)})`, `${event.type} · ${where}${course}`);
+      vevent(`${event.id}-reposicao`, event.swapDate, rules.addDays(event.swapDate, 1), `${event.title} (reposição de ${formatDate(event.start)})`, `${event.type} · ${where}${course}`);
+      return;
+    }
+    vevent(event.id, event.start, rules.addDays(event.end, 1), event.title, `${event.type} · ${where}${course}`);
+  });
+  lines.push("END:VCALENDAR");
+  return `${lines.map(foldIcsLine).join("\r\n")}\r\n`;
+}
+
+// Rotas sem login: /api/public/years, /api/public/years/:id, /api/public/years/:id/calendario.ics?campus=
+function handlePublicApi(req, res, url, { sendJson }) {
+  if (req.method !== "GET") throw new ApiError(405, "Método não permitido.");
+  const parts = url.pathname.split("/").slice(3).map((part) => {
+    try {
+      return decodeURIComponent(part);
+    } catch {
+      throw new ApiError(400, "Endereço inválido.");
+    }
+  });
+  if (parts[0] !== "years") throw new ApiError(404, "Rota não encontrada.");
+  if (parts.length === 1) {
+    return sendJson(res, 200, db.listYears().filter((year) => year.finalPublished).map(({ id, start, end }) => ({ id, calendar: { start, end } })));
+  }
+  const year = publishedYear(parts[1]);
+  const campus = url.searchParams.get("campus") || "";
+  if (campus && !campuses.includes(campus)) throw new ApiError(400, "Campus inválido.");
+  const events = rules.eventsForCampus(db.listEvents(year.id), campus).map(publicEventFields);
+  if (parts.length === 2) {
+    return sendJson(res, 200, { id: year.id, calendar: { start: year.start, end: year.end }, events });
+  }
+  if (parts.length === 3 && parts[2] === "calendario.ics") {
+    const fileName = `calendario-ifms-${yearLabel(year).replace("/", "-")}${campus ? `-${campus.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "-").toLowerCase()}` : ""}.ics`;
+    res.writeHead(200, {
+      "Content-Type": "text/calendar; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${fileName}"`,
+      "Cache-Control": "no-cache",
+    });
+    res.end(buildIcs(year, events, campus));
+    return;
+  }
+  throw new ApiError(404, "Rota não encontrada.");
+}
+
+module.exports = { handleCalendarApi, handlePublicApi, buildIcs, ApiError, audit };

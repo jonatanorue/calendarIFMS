@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Calendário Acadêmico IFMS</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="public-page">
+    <main>
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark">IF</span>
+          <div>
+            <strong>Calendário Acadêmico IFMS</strong>
+            <small>Calendários finais publicados</small>
+          </div>
+        </div>
+        <div class="actions">
+          <select id="publicYear" aria-label="Ano letivo"></select>
+          <select id="publicCampus" aria-label="Campus"></select>
+          <a class="button primary" id="icsLink" href="#">Baixar para o Google Agenda (.ics)</a>
+        </div>
+      </header>
+
+      <p class="hint" id="publicHint"></p>
+      <div class="legend" id="publicLegend"></div>
+      <div class="months" id="publicMonths"></div>
+      <p class="notice" id="publicEmpty" hidden>Nenhum calendário final foi publicado ainda.</p>
+    </main>
+    <script src="/campuses.js"></script>
+    <script src="/rules.js"></script>
+    <script src="/publico.js"></script>
+  </body>
+</html>

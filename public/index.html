@@ -26,6 +26,7 @@
           <button type="submit">Entrar sem Google</button>
         </form>
         <p class="login-message" id="loginMessage" role="alert"></p>
+        <p class="hint"><a href="/publico">Ver os calendários finais publicados</a> (sem login).</p>
       </div>
     </section>
 
@@ -41,6 +42,7 @@
         <button class="active" data-view="dashboard">Dashboard</button>
         <button data-view="annual">Calendário anual</button>
         <button data-view="monthly">Visão mensal</button>
+        <button data-view="events">Eventos</button>
         <button data-view="approval">Aprovação</button>
         <button data-view="reports">Relatórios</button>
         <button data-view="audit" data-permission="view-audit">Auditoria</button>
@@ -79,6 +81,11 @@
             <div id="validationSummary"></div>
           </section>
         </div>
+        <section class="panel">
+          <h2>Conferência do calendário</h2>
+          <p class="hint" id="reviewWarningsHint"></p>
+          <ul class="warning-list" id="reviewWarnings"></ul>
+        </section>
         <section class="panel admin-panel" data-permission="manage-admin">
           <div class="section-head compact">
             <h2>Administração</h2>
@@ -99,6 +106,7 @@
           </div>
           <div class="actions">
             <button data-action="open-reitoria-event" data-permission="reitoria-events">Incluir evento da Reitoria</button>
+            <button data-action="open-holidays" data-permission="reitoria-events">Sugerir feriados</button>
             <button data-action="duplicate" data-permission="init-calendar">Duplicar para novo ano</button>
             <button data-action="simulate">Simular</button>
             <button class="primary" data-action="submit" data-permission="submit-calendar">Enviar aprovação</button>
@@ -112,6 +120,23 @@
         </div>
         <div class="legend" id="legend"></div>
         <div class="months" id="months"></div>
+      </section>
+
+      <section id="events" class="view">
+        <div class="section-head">
+          <h2 id="eventsTitle">Eventos</h2>
+          <div class="actions">
+            <input id="eventSearch" type="search" placeholder="Buscar por título" aria-label="Buscar evento" />
+            <select id="eventListType" aria-label="Tipo de evento"></select>
+          </div>
+        </div>
+        <p class="hint" id="eventsCount"></p>
+        <div class="table-scroll">
+          <table class="events-table">
+            <thead><tr><th>Data</th><th>Tipo</th><th>Título</th><th>Campus</th><th>Curso</th><th>Origem</th><th>Ações</th></tr></thead>
+            <tbody id="eventRows"></tbody>
+          </table>
+        </div>
       </section>
 
       <section id="monthly" class="view">
@@ -159,6 +184,10 @@
           <button class="report" data-action="excel">Baixar planilha (CSV)<small>Abre no Excel e no LibreOffice</small></button>
           <button class="report" data-action="compare" data-permission="view-all-campi">Comparar campi<small>Dias letivos por semestre e status</small></button>
         </div>
+        <p class="notice success" id="publicLinkNotice" hidden>
+          Calendário final publicado. Alunos e servidores podem consultá-lo sem login em
+          <a id="publicLink" href="/publico" target="_blank" rel="noopener">página pública</a>, e importar no Google Agenda pelo arquivo .ics.
+        </p>
         <div id="reportOutput" class="report-output"></div>
       </section>
 
@@ -352,10 +381,59 @@
           <strong>Atenção:</strong> depois de publicado, o calendário base <strong>não pode mais ser alterado</strong>, nem pela Reitoria.
           Confira todos os eventos (feriados, férias, planejamento e início e fim das aulas de cada semestre) antes de continuar.
         </p>
+        <div id="publishWarningsBox" hidden>
+          <strong>Pontos para conferir antes de publicar:</strong>
+          <ul class="warning-list" id="publishWarnings"></ul>
+        </div>
         <p class="hint">Com a base publicada, os campi passam a montar os próprios calendários. Feriados municipais continuam podendo ser incluídos pela Reitoria e pelos campi.</p>
         <div class="modal-actions">
           <button type="button" data-action="close-publish">Cancelar</button>
           <button type="submit" class="primary">Publicar base</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="historyDialog">
+      <div class="dialog-body">
+        <div class="modal-head">
+          <h2 id="historyTitle">Histórico</h2>
+          <button type="button" class="icon-button" data-action="close-history">×</button>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Data</th><th>Status</th><th>Por</th><th>Motivo</th></tr></thead>
+            <tbody id="historyRows"></tbody>
+          </table>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="countDialog" class="wide-dialog">
+      <div class="dialog-body">
+        <div class="modal-head">
+          <h2 id="countTitle">Detalhe da contagem</h2>
+          <button type="button" class="icon-button" data-action="close-count">×</button>
+        </div>
+        <div id="countBody"></div>
+      </div>
+    </dialog>
+
+    <dialog id="holidayDialog" class="wide-dialog">
+      <form method="dialog" id="holidayForm">
+        <div class="modal-head">
+          <h2>Sugerir feriados</h2>
+          <button type="button" class="icon-button" data-action="close-holidays">×</button>
+        </div>
+        <p class="hint">Feriados nacionais e o feriado estadual de MS que caem no período do ano letivo, inclusive os de data móvel. Desmarque os que não se aplicam. Os já cadastrados na mesma data aparecem desmarcados.</p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th></th><th>Data</th><th>Dia</th><th>Feriado</th><th>Tipo</th></tr></thead>
+            <tbody id="holidayRows"></tbody>
+          </table>
+        </div>
+        <div class="modal-actions">
+          <button type="button" data-action="close-holidays">Cancelar</button>
+          <button type="submit" class="primary" id="holidaySubmit">Incluir selecionados</button>
         </div>
       </form>
     </dialog>

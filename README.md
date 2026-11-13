@@ -93,6 +93,12 @@ docker compose cp calendario:/app/data/calendar.db ./backup-calendar.db
 - Publicação da base (depois de publicada, não pode mais ser alterada), envio, aprovação, rejeição com motivo e publicação do calendário final.
 - Relatórios em CSV, comparação entre campi e impressão paisagem.
 - Auditoria gravada pelo servidor.
+- Tela **Eventos**: todos os eventos do ano em tabela, com busca e filtro por tipo.
+- **Detalhe da contagem**: em cada semestre, os dias descontados e acrescentados (e por qual evento) e os dias letivos por mês.
+- **Conferência do calendário**: avisos de semestre sem início/fim, semestres sobrepostos, sábado letivo fora do sábado, eventos que não alteram a contagem, duplicados e trocas que não repõem aula. Aparecem no Dashboard e antes de publicar a base.
+- **Sugerir feriados**: feriados nacionais (inclusive Carnaval, Paixão e Corpus Christi) e o feriado estadual de MS do período, incluídos de uma vez.
+- **Histórico** de envios, aprovações e rejeições de cada campus.
+- **Calendário público** em `/publico`, sem login, com os calendários finais publicados e arquivo `.ics` para importar no Google Agenda.
 
 ## Dados
 

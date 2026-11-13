@@ -189,6 +189,11 @@ function render() {
   renderUsers();
   renderNotice();
   renderReportScope();
+  renderEvents();
+  renderReviewWarnings();
+  document.querySelector('[data-action="open-holidays"]').hidden = !can("reitoria-events") || year().basePublished;
+  document.getElementById("publicLinkNotice").hidden = !isFinalPublished();
+  document.getElementById("publicLink").href = `/publico?ano=${encodeURIComponent(year().id)}`;
   const publishButton = document.querySelector('[data-action="publish-base"]');
   publishButton.disabled = year().basePublished;
   publishButton.textContent = year().basePublished ? "Base publicada" : "Publicar base";
@@ -205,7 +210,7 @@ function renderEmptyState() {
   document.getElementById("periodLabel").textContent = "Nenhum ano letivo cadastrado.";
   document.getElementById("annualTitle").textContent = "Calendário acadêmico";
   document.getElementById("yearFilter").innerHTML = "<option>Nenhum ano letivo</option>";
-  ["metrics", "campusStatus", "validationSummary", "legend", "months", "monthGrid", "monthTotals", "approvalRows", "reportOutput"].forEach((id) => {
+  ["metrics", "campusStatus", "validationSummary", "legend", "months", "monthGrid", "monthTotals", "approvalRows", "reportOutput", "eventRows", "reviewWarnings"].forEach((id) => {
     document.getElementById(id).innerHTML = "";
   });
   const notice = document.getElementById("calendarNotice");
@@ -447,13 +452,13 @@ function renderValidation() {
   const counts = countSchoolDays();
   const semesterCards = Object.entries(counts.byCourse).flatMap(([course, results]) =>
     results.map((result, index) =>
-      validationCard(`${course} - ${semesters[index]}º semestre`, result.total, courseRules[course].requiredDaysPerSemester, result.periodLabel),
+      validationCard(`${course} - ${semesters[index]}º semestre`, result.total, courseRules[course].requiredDaysPerSemester, result.periodLabel, { course, semester: semesters[index] }),
     ),
   );
   document.getElementById("validationSummary").innerHTML = [...semesterCards, weekdayCard("Distribuição semanal", counts.weekdays)].join("");
 }
 
-function validationCard(title, actual, required, detail = "") {
+function validationCard(title, actual, required, detail = "", target = null) {
   const diff = actual - required;
   const width = Math.min(100, Math.round((actual / required) * 100));
   const text = diff === 0 ? "Regra atendida." : diff < 0 ? `Faltam ${Math.abs(diff)} dias.` : `Excede ${diff} dias.`;
@@ -462,6 +467,7 @@ function validationCard(title, actual, required, detail = "") {
     <div class="bar ${diff === 0 ? "" : "warning"}"><span style="width:${width}%"></span></div>
     <p>${actual}/${required} dias letivos. ${text}</p>
     ${detail ? `<p>${detail}</p>` : ""}
+    ${target ? `<button type="button" class="link-button" data-action="count-detail" data-course="${target.course}" data-semester="${target.semester}">Ver dias</button>` : ""}
   </div>`;
 }
 
@@ -485,8 +491,14 @@ function countSchoolDays() {
   return { byCourse, weekdays };
 }
 
+// Eventos que entram na contagem: os do campus escolhido, ou só a base quando "Todos os campi".
+function countingEvents(campus = currentCampus()) {
+  if (campus === allCampuses) return year().events.filter((event) => !event.campus);
+  return scopedCampusEvents(false, campus);
+}
+
 function countCourseSchoolDays(course, semester, campus = currentCampus()) {
-  const result = calendarRules.countCourseSchoolDays(scopedCampusEvents(false, campus), course, semester);
+  const result = calendarRules.countCourseSchoolDays(countingEvents(campus), course, semester);
   return {
     ...result,
     periodLabel: result.start
@@ -496,11 +508,11 @@ function countCourseSchoolDays(course, semester, campus = currentCampus()) {
 }
 
 function courseSchoolDates(course) {
-  return calendarRules.courseSchoolDates(scopedCampusEvents(false), course);
+  return calendarRules.courseSchoolDates(countingEvents(), course);
 }
 
 function getSemesterBoundaries(course, semester, campus = currentCampus()) {
-  return calendarRules.semesterBoundaries(scopedCampusEvents(false, campus), course, semester);
+  return calendarRules.semesterBoundaries(countingEvents(campus), course, semester);
 }
 
 function maxDate(firstDate, secondDate) {
@@ -535,6 +547,7 @@ function renderApproval() {
         actions.push(`<button data-action="reopen-campus" data-campus="${campus}">Reabrir</button>`);
       }
       if (reviewer) actions.push(`<button data-action="select-campus" data-campus="${campus}">Ver calendário</button>`);
+      actions.push(`<button data-action="history" data-campus="${campus}">Histórico</button>`);
       return `<tr>
         <td>${campus}</td>
         <td><span class="tag ${statusClass(item.status)}">${item.status}</span></td>
@@ -777,6 +790,171 @@ function fillEventCampusField(scope, value) {
   const select = document.getElementById("eventCampus");
   select.innerHTML = options.map(([optionValue, label]) => `<option value="${optionValue}">${label}</option>`).join("");
   select.value = value;
+}
+
+const weekdayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+function withWeekday(isoDate) {
+  return `${formatDate(isoDate)} (${weekdayNames[calendarRules.weekday(isoDate)]})`;
+}
+
+function eventDates(event) {
+  if (event.swapDate) return `${withWeekday(event.start)} → ${withWeekday(event.swapDate)}`;
+  return event.start === event.end ? withWeekday(event.start) : `${withWeekday(event.start)} a ${withWeekday(event.end)}`;
+}
+
+function normalizeText(value) {
+  return String(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+// Tela "Eventos": todos os eventos do ano em tabela, com busca e filtro.
+function renderEvents() {
+  const typeSelect = document.getElementById("eventListType");
+  const selectedType = typeSelect.value || "Todos";
+  typeSelect.innerHTML = '<option value="Todos">Todos os tipos</option>' + Object.keys(eventTypes).map((type) => `<option>${type}</option>`).join("");
+  typeSelect.value = selectedType;
+  const search = normalizeText(document.getElementById("eventSearch").value.trim());
+  const all = scopedCampusEvents(false);
+  const list = all
+    .filter((event) => (selectedType === "Todos" || event.type === selectedType) && (!search || normalizeText(event.title).includes(search)))
+    .sort((first, second) => first.start.localeCompare(second.start) || first.title.localeCompare(second.title));
+  document.getElementById("eventsTitle").textContent = `Eventos ${academicYearLabel()}`;
+  document.getElementById("eventsCount").textContent = `${list.length} de ${all.length} evento(s) · ${scopeLabel()}`;
+  document.getElementById("eventRows").innerHTML =
+    list
+      .map((event) => {
+        const actions = canEditEvent(event)
+          ? `<button data-action="edit-event" data-event-id="${escapeHtml(event.id)}">Editar</button><button data-action="remove-event" data-event-id="${escapeHtml(event.id)}">Remover</button>`
+          : "-";
+        return `<tr>
+          <td>${escapeHtml(eventDates(event))}</td>
+          <td><span class="swatch" style="background:${escapeHtml(event.color)}"></span> ${escapeHtml(event.type)}${event.semester ? ` (${event.semester}º sem.)` : ""}</td>
+          <td>${escapeHtml(event.title)}</td>
+          <td>${escapeHtml(event.campus || allCampuses)}</td>
+          <td>${escapeHtml(event.course || "Todos")}</td>
+          <td>${event.scope === "REITORIA" ? "Reitoria" : "Campus"}</td>
+          <td><div class="actions">${actions}</div></td>
+        </tr>`;
+      })
+      .join("") || '<tr><td colspan="7" class="empty">Nenhum evento encontrado.</td></tr>';
+}
+
+// Avisos de conferência. Em "Todos os campi", confere só a base.
+function reviewEvents() {
+  return currentCampus() === allCampuses ? year().events.filter((event) => !event.campus) : scopedCampusEvents(false);
+}
+
+function warningItems(warnings) {
+  return warnings.length
+    ? warnings.map((text) => `<li>${escapeHtml(text)}</li>`).join("")
+    : '<li class="ok">Nenhum ponto de atenção encontrado.</li>';
+}
+
+function renderReviewWarnings() {
+  document.getElementById("reviewWarningsHint").textContent =
+    currentCampus() === allCampuses
+      ? "Conferindo a base (eventos para todos os campi). Selecione um campus no topo para conferir o calendário dele."
+      : `Conferindo o calendário de ${currentCampus()}.`;
+  document.getElementById("reviewWarnings").innerHTML = warningItems(calendarRules.reviewWarnings(reviewEvents()));
+}
+
+function openHistory(campus) {
+  const item = year().campusStatus[campus];
+  if (!item) return;
+  document.getElementById("historyTitle").textContent = `Histórico de ${campus} · ${academicYearLabel()}`;
+  document.getElementById("historyRows").innerHTML =
+    [...item.history]
+      .reverse()
+      .map((entry) => `<tr>
+        <td>${escapeHtml(formatDateTime(entry.at))}</td>
+        <td><span class="tag ${statusClass(entry.status)}">${escapeHtml(entry.status)}</span></td>
+        <td>${escapeHtml(entry.by)}</td>
+        <td>${escapeHtml(entry.reason || "-")}</td>
+      </tr>`)
+      .join("") || '<tr><td colspan="4" class="empty">Nenhuma mudança de status registrada ainda.</td></tr>';
+  document.getElementById("historyDialog").showModal();
+}
+
+function dayList(entries, emptyText) {
+  if (!entries.length) return `<p class="hint">${emptyText}</p>`;
+  return `<div class="table-scroll"><table><thead><tr><th>Data</th><th>Motivo</th></tr></thead><tbody>${entries
+    .slice()
+    .sort((first, second) => first.date.localeCompare(second.date))
+    .map(({ date, event }) => `<tr><td>${escapeHtml(withWeekday(date))}</td><td>${escapeHtml(event.title)} <small>(${escapeHtml(event.type)}${event.campus ? ` · ${escapeHtml(event.campus)}` : ""})</small></td></tr>`)
+    .join("")}</tbody></table></div>`;
+}
+
+// Mostra de onde vem o total: dias do período, o que foi descontado e o que foi acrescentado.
+function openCountDetail(course, semester) {
+  const result = countCourseSchoolDays(course, semester);
+  const required = courseRules[course].requiredDaysPerSemester;
+  document.getElementById("countTitle").textContent = `${course} · ${semester}º semestre · ${scopeLabel()}`;
+  if (!result.start) {
+    document.getElementById("countBody").innerHTML = `<p class="hint">${escapeHtml(result.periodLabel)}</p>`;
+    document.getElementById("countDialog").showModal();
+    return;
+  }
+  const allowed = courseRules[course].allowedWeekdays.map((day) => weekdayNames[day]).join(", ");
+  const byMonth = {};
+  [...result.dates].forEach((date) => (byMonth[date.slice(0, 7)] = (byMonth[date.slice(0, 7)] || 0) + 1));
+  const monthRows = Object.entries(byMonth)
+    .sort()
+    .map(([key, total]) => `<tr><td>${monthNames[Number(key.slice(5, 7)) - 1]} ${key.slice(0, 4)}</td><td>${total}</td></tr>`)
+    .join("");
+  const diff = result.total - required;
+  document.getElementById("countBody").innerHTML = `
+    <dl class="count-summary">
+      <dt>Período das aulas</dt><dd>${formatDate(result.start)} a ${formatDate(result.end)}</dd>
+      <dt>Dias da semana que contam</dt><dd>${allowed}</dd>
+      <dt>Dias no período</dt><dd>${result.base}</dd>
+      <dt>Descontados</dt><dd>− ${result.removed.length}</dd>
+      <dt>Acrescentados</dt><dd>+ ${result.added.length}</dd>
+      <dt>Total</dt><dd class="${diff === 0 ? "count-ok" : "count-off"}">${result.total} de ${required}${diff ? ` (${diff > 0 ? "sobram" : "faltam"} ${Math.abs(diff)})` : ""}</dd>
+    </dl>
+    <h3>Dias descontados</h3>
+    ${dayList(result.removed, "Nenhum dia descontado.")}
+    <h3>Dias acrescentados</h3>
+    ${dayList(result.added, "Nenhum dia acrescentado.")}
+    <h3>Dias letivos por mês</h3>
+    <div class="table-scroll"><table><thead><tr><th>Mês</th><th>Dias letivos</th></tr></thead><tbody>${monthRows}</tbody></table></div>`;
+  document.getElementById("countDialog").showModal();
+}
+
+let holidaySuggestions = [];
+
+function openHolidayDialog() {
+  if (year().basePublished) {
+    showToast("A base já foi publicada: os feriados nacionais precisavam ser incluídos antes.");
+    return;
+  }
+  holidaySuggestions = calendarRules.holidaysInPeriod(year().calendar.start, year().calendar.end);
+  const exists = (holiday) => year().events.some((event) => !event.campus && event.start === holiday.date && event.type === holiday.type);
+  document.getElementById("holidayRows").innerHTML = holidaySuggestions
+    .map((holiday, index) => {
+      const already = exists(holiday);
+      return `<tr class="${already ? "muted-row" : ""}">
+        <td><input type="checkbox" data-holiday="${index}" ${already ? "" : "checked"} aria-label="Incluir ${escapeHtml(holiday.title)}" /></td>
+        <td>${formatDate(holiday.date)}</td>
+        <td>${weekdayNames[calendarRules.weekday(holiday.date)]}</td>
+        <td>${escapeHtml(holiday.title)}${already ? ' <small>(já cadastrado)</small>' : ""}</td>
+        <td>${escapeHtml(holiday.type)}</td>
+      </tr>`;
+    })
+    .join("");
+  document.getElementById("holidayDialog").showModal();
+}
+
+async function addHolidays(event) {
+  event.preventDefault();
+  const selected = [...document.querySelectorAll("#holidayRows input[data-holiday]:checked")].map((input) => holidaySuggestions[Number(input.dataset.holiday)]);
+  if (!selected.length) {
+    showToast("Selecione ao menos um feriado.");
+    return;
+  }
+  const events = selected.map((holiday) => ({ type: holiday.type, title: holiday.title, start: holiday.date, end: holiday.date, course: "", campus: "" }));
+  if (!(await mutate("events/batch", { body: { events } }))) return;
+  document.getElementById("holidayDialog").close();
+  showToast(`${events.length} feriado(s) incluído(s) na base.`);
 }
 
 // Tipos oferecidos no diálogo: "CAMPUS" para o calendário do campus; "REITORIA" para a base
@@ -1142,6 +1320,9 @@ function openPublishDialog() {
     showToast("O calendário base já está publicado.");
     return;
   }
+  const warnings = calendarRules.reviewWarnings(year().events.filter((event) => !event.campus));
+  document.getElementById("publishWarningsBox").hidden = !warnings.length;
+  document.getElementById("publishWarnings").innerHTML = warningItems(warnings);
   document.getElementById("publishDialog").showModal();
 }
 
@@ -1153,7 +1334,7 @@ async function publishBase(event) {
 }
 
 // Ações que dependem de um ano letivo já criado.
-const actionsWithoutYear = ["open-init", "close-init", "close-year", "logout", "manage-users", "edit-user", "remove-user", "cancel-user-edit", "close-dialog", "close-review", "close-publish"];
+const actionsWithoutYear = ["open-init", "close-init", "close-year", "close-history", "close-count", "close-holidays", "logout", "manage-users", "edit-user", "remove-user", "cancel-user-edit", "close-dialog", "close-review", "close-publish"];
 
 document.addEventListener("click", (event) => {
   const action = event.target.dataset.action;
@@ -1176,6 +1357,12 @@ document.addEventListener("click", (event) => {
   if (action === "close-dialog") document.getElementById("eventDialog").close();
   if (action === "open-init" && can("init-calendar")) openInitDialog();
   if (action === "open-year" && can("init-calendar")) openYearDialog();
+  if (action === "history") openHistory(event.target.dataset.campus);
+  if (action === "close-history") document.getElementById("historyDialog").close();
+  if (action === "count-detail") openCountDetail(event.target.dataset.course, Number(event.target.dataset.semester));
+  if (action === "close-count") document.getElementById("countDialog").close();
+  if (action === "open-holidays" && can("reitoria-events")) openHolidayDialog();
+  if (action === "close-holidays") document.getElementById("holidayDialog").close();
   if (action === "close-year") document.getElementById("yearDialog").close();
   if (action === "delete-year" && can("init-calendar")) deleteYear();
   if (action === "close-init") document.getElementById("initDialog").close();
@@ -1222,6 +1409,9 @@ document.getElementById("initCopyFrom").addEventListener("change", updateInitCop
 document.getElementById("reviewForm").addEventListener("submit", rejectFromForm);
 document.getElementById("publishForm").addEventListener("submit", publishBase);
 document.getElementById("yearForm").addEventListener("submit", saveYearPeriod);
+document.getElementById("holidayForm").addEventListener("submit", addHolidays);
+document.getElementById("eventSearch").addEventListener("input", () => year() && renderEvents());
+document.getElementById("eventListType").addEventListener("change", () => year() && renderEvents());
 document.getElementById("eventCampus").addEventListener("change", updateReopenHint);
 document.getElementById("yearFilter").addEventListener("change", async (event) => {
   state.activeYearId = event.target.value;

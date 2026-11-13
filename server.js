@@ -4,7 +4,7 @@ const path = require("path");
 const campuses = require("./public/campuses.js");
 const db = require("./db");
 const { verifyGoogleIdToken } = require("./google-auth");
-const { handleCalendarApi } = require("./calendar-api");
+const { handleCalendarApi, handlePublicApi } = require("./calendar-api");
 
 const port = Number(process.env.PORT || 3001);
 const publicDir = path.join(__dirname, "public");
@@ -215,6 +215,12 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  // Calendário final publicado: aberto, sem login.
+  if (url.pathname.startsWith("/api/public/")) {
+    handlePublicApi(req, res, url, { sendJson });
+    return;
+  }
+
   // Exigir JSON nas escritas impede envio de formulários de outros sites (CSRF).
   if (req.method !== "GET" && !String(req.headers["content-type"] || "").startsWith("application/json")) {
     sendJson(res, 415, { error: "Envie os dados como JSON." });
@@ -296,7 +302,8 @@ function serveStatic(req, res, url) {
   if (req.method !== "GET" && req.method !== "HEAD") return sendText(res, 405, "Método não permitido");
   const cleanUrl = safeDecode(url.pathname);
   if (cleanUrl === null || cleanUrl.includes("\0")) return sendText(res, 400, "Requisição inválida");
-  const requestedPath = cleanUrl === "/" ? "/index.html" : cleanUrl;
+  const aliases = { "/": "/index.html", "/publico": "/publico.html" };
+  const requestedPath = aliases[cleanUrl] || cleanUrl;
   const filePath = path.normalize(path.join(publicDir, requestedPath));
 
   if (!filePath.startsWith(publicDir + path.sep)) return sendText(res, 403, "Acesso negado");

@@ -89,34 +89,148 @@ const calendarRules = (() => {
   // Dias letivos de um curso em um semestre: dias permitidos entre o início e o fim das aulas
   // daquele semestre, menos os eventos que bloqueiam, mais os que contam como dia letivo e,
   // por último, as trocas (o dia original sai e o dia de reposição entra).
+  // Também devolve o que cada evento tirou ou acrescentou, para explicar a contagem.
   function countCourseSchoolDays(events, course, semester) {
     const rule = courseRules[course];
     const dates = new Set();
+    const removed = [];
+    const added = [];
     const { start, end } = semesterBoundaries(events, course, semester);
-    if (!start || !end) return { total: 0, dates, start, end };
+    if (!start || !end) return { total: 0, base: 0, dates, start, end, removed, added };
     const inSemester = (date) => date >= start && date <= end;
+    const remove = (date, event) => {
+      if (inSemester(date) && dates.delete(date)) removed.push({ date, event });
+    };
+    const add = (date, event) => {
+      if (inSemester(date) && !dates.has(date)) {
+        dates.add(date);
+        added.push({ date, event });
+      }
+    };
 
     dateRange(start, end).forEach((date) => {
       if (rule.allowedWeekdays.includes(weekday(date))) dates.add(date);
     });
+    const base = dates.size;
     events
       .filter((event) => !event.affectsSchoolDay && blockingTypes.includes(event.type) && appliesToCourse(event, course))
-      .forEach((event) => dateRange(event.start, event.end).filter(inSemester).forEach((date) => dates.delete(date)));
+      .forEach((event) => dateRange(event.start, event.end).forEach((date) => remove(date, event)));
     events
       .filter((event) => !isSwap(event) && event.affectsSchoolDay && appliesToCourse(event, course))
-      .forEach((event) => dateRange(event.start, event.end).filter(inSemester).forEach((date) => dates.add(date)));
+      .forEach((event) => dateRange(event.start, event.end).forEach((date) => add(date, event)));
     events
       .filter((event) => isSwap(event) && appliesToCourse(event, course))
       .forEach((event) => {
-        if (inSemester(event.start)) dates.delete(event.start);
-        if (inSemester(event.swapDate)) dates.add(event.swapDate);
+        remove(event.start, event);
+        add(event.swapDate, event);
       });
 
-    return { total: dates.size, dates, start, end };
+    return { total: dates.size, base, dates, start, end, removed, added };
   }
 
   function courseSchoolDates(events, course) {
     return new Set(semesters.flatMap((semester) => [...countCourseSchoolDays(events, course, semester).dates]));
+  }
+
+  function formatShort(isoDate) {
+    return isoDate.split("-").reverse().join("/");
+  }
+
+  // Avisos para conferir antes de publicar ou enviar: não bloqueiam, só apontam o que
+  // provavelmente está errado. Recebe os eventos já filtrados para o campus.
+  function reviewWarnings(events) {
+    const warnings = [];
+    Object.keys(courseRules).forEach((course) => {
+      const bounds = semesters.map((semester) => semesterBoundaries(events, course, semester));
+      bounds.forEach((bound, index) => {
+        if (!bound.start) warnings.push(`${course} ${semesters[index]}º semestre: falta cadastrar o início e o fim das aulas.`);
+        else if (bound.start === bound.end) warnings.push(`${course} ${semesters[index]}º semestre: só há uma data de início/fim (${formatShort(bound.start)}). Cadastre as duas.`);
+      });
+      if (bounds[0].end && bounds[1].start && bounds[1].start <= bounds[0].end) {
+        warnings.push(`${course}: o 2º semestre começa (${formatShort(bounds[1].start)}) antes de terminar o 1º (${formatShort(bounds[0].end)}).`);
+      }
+    });
+
+    const counts = Object.keys(courseRules).flatMap((course) => semesters.map((semester) => ({ course, ...countCourseSchoolDays(events, course, semester) })));
+    events.forEach((event) => {
+      const courses = Object.keys(courseRules).filter((course) => appliesToCourse(event, course));
+      if (event.type === "Sábado Letivo" && weekday(event.start) !== 6) {
+        warnings.push(`"${event.title}" (${formatShort(event.start)}) é um Sábado Letivo que não cai num sábado.`);
+      }
+      if (isSwap(event)) {
+        const relevant = counts.filter((item) => courses.includes(item.course));
+        const restored = relevant.filter((item) => item.added.some((entry) => entry.event === event));
+        const taken = relevant.filter((item) => item.removed.some((entry) => entry.event === event));
+        if (!taken.length) warnings.push(`Troca "${event.title}": ${formatShort(event.start)} já não era dia letivo, então a troca não tira aula.`);
+        courses.forEach((course) => {
+          if (taken.some((item) => item.course === course) && !restored.some((item) => item.course === course)) {
+            warnings.push(`Troca "${event.title}": ${formatShort(event.swapDate)} já é letivo (ou está fora do semestre) no ${course}, então a troca tira um dia dele.`);
+          }
+        });
+        return;
+      }
+      if (event.affectsSchoolDay) {
+        const changed = counts.some((item) => courses.includes(item.course) && item.added.some((entry) => entry.event === event));
+        if (!changed) warnings.push(`"${event.title}" (${formatShort(event.start)}) está marcado como dia letivo, mas não altera a contagem (fora dos semestres ou já era letivo).`);
+      }
+    });
+
+    const seen = new Map();
+    events.forEach((event) => {
+      const key = `${event.type}|${event.start}|${event.campus || ""}`;
+      if (seen.has(key)) warnings.push(`Há mais de um "${event.type}" em ${formatShort(event.start)}: "${seen.get(key)}" e "${event.title}".`);
+      else seen.set(key, event.title);
+    });
+    return warnings;
+  }
+
+  // Domingo de Páscoa (algoritmo de Meeus/Jones/Butcher).
+  function easterDate(year) {
+    const a = year % 19;
+    const b = Math.floor(year / 100);
+    const c = year % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31);
+    const day = ((h + l - 7 * m + 114) % 31) + 1;
+    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  }
+
+  // Feriados nacionais (e o estadual de MS) de um ano civil, para a Reitoria conferir e incluir.
+  function nationalHolidays(year) {
+    const easter = easterDate(year);
+    const fixed = (monthDay, title, type = "Feriado Nacional") => ({ date: `${year}-${monthDay}`, title, type });
+    const movable = (offset, title) => ({ date: addDays(easter, offset), title, type: "Feriado Nacional" });
+    return [
+      fixed("01-01", "Confraternização Universal"),
+      movable(-48, "Carnaval (ponto facultativo)"),
+      movable(-47, "Carnaval (ponto facultativo)"),
+      movable(-2, "Paixão de Cristo"),
+      fixed("04-21", "Tiradentes"),
+      fixed("05-01", "Dia do Trabalho"),
+      movable(60, "Corpus Christi (ponto facultativo)"),
+      fixed("09-07", "Independência do Brasil"),
+      fixed("10-11", "Criação do Estado de Mato Grosso do Sul", "Feriado Estadual"),
+      fixed("10-12", "Nossa Senhora Aparecida"),
+      fixed("11-02", "Finados"),
+      fixed("11-15", "Proclamação da República"),
+      fixed("11-20", "Dia Nacional de Zumbi e da Consciência Negra"),
+      fixed("12-25", "Natal"),
+    ].sort((first, second) => first.date.localeCompare(second.date));
+  }
+
+  // Feriados que caem dentro de um período (que pode atravessar o ano civil).
+  function holidaysInPeriod(start, end) {
+    const years = [];
+    for (let year = Number(start.slice(0, 4)); year <= Number(end.slice(0, 4)); year += 1) years.push(year);
+    return years.flatMap(nationalHolidays).filter((holiday) => holiday.date >= start && holiday.date <= end);
   }
 
   // Exatamente o número exigido de dias letivos em cada semestre de cada curso.
@@ -143,6 +257,10 @@ const calendarRules = (() => {
     countCourseSchoolDays,
     courseSchoolDates,
     meetsSchoolDayRules,
+    reviewWarnings,
+    easterDate,
+    nationalHolidays,
+    holidaysInPeriod,
   };
 })();
 
