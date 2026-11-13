@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Guia do Calendário IFMS</title>
+<meta name="color-scheme" content="light dark" />
+<style>
+/* Manual em coluna única com índice lateral fixo em telas largas; as trilhas da Reitoria e do Campus são sequências numeradas. */
+:root {
+  --paper: #f5f8f5;
+  --surface: #ffffff;
+  --ink: #17231c;
+  --muted: #56685d;
+  --line: #d4dfd7;
+  --green: #2f9e48;
+  --green-deep: #1d6e33;
+  --green-soft: #e3f3e7;
+  --blue: #1f73b8;
+  --blue-soft: #e2eef8;
+  --red: #c8222a;
+  --red-soft: #fbe7e7;
+  --chip: #eef3ef;
+  --font-display: "Barlow Semi Condensed", "Avenir Next Condensed", "Arial Narrow", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Source Sans 3", "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --step-0: 1rem;
+  --step-1: 1.2rem;
+  --step-2: 1.5rem;
+  --step-3: 2.1rem;
+  --step-4: clamp(2.2rem, 5vw, 3.1rem);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0f1612; --surface: #16211a; --ink: #e5eee7; --muted: #9db0a4; --line: #2a3a30;
+    --green: #4cc26a; --green-deep: #86dca0; --green-soft: #1c3324; --blue: #6fb3ec; --blue-soft: #18293a;
+    --red: #ff7a7a; --red-soft: #3a1d1f; --chip: #1f2c23; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0f1612; --surface: #16211a; --ink: #e5eee7; --muted: #9db0a4; --line: #2a3a30;
+  --green: #4cc26a; --green-deep: #86dca0; --green-soft: #1c3324; --blue: #6fb3ec; --blue-soft: #18293a;
+  --red: #ff7a7a; --red-soft: #3a1d1f; --chip: #1f2c23; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.1; text-wrap: balance; margin: 0; }
+h2 { font-size: var(--step-3); }
+h3 { font-size: var(--step-2); }
+p { margin: 0; }
+a { color: var(--green-deep); text-underline-offset: 3px; }
+a:focus-visible, summary:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; border-radius: 4px; }
+
+.layout {
+  display: grid;
+  gap: 48px;
+  grid-template-columns: 220px minmax(0, 1fr);
+  margin: 0 auto;
+  max-width: 1120px;
+  padding-block: 40px 80px;
+}
+.toc {
+  align-self: start;
+  position: sticky;
+  top: calc(env(safe-area-inset-top, 0px) + 24px);
+}
+.toc strong {
+  color: var(--muted);
+  display: block;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+.toc ol { display: grid; gap: 2px; list-style: none; margin: 0; padding: 0; }
+.toc a {
+  border-radius: 6px;
+  color: var(--ink);
+  display: block;
+  font-size: 0.98rem;
+  padding: 5px 10px;
+  text-decoration: none;
+}
+.toc a:hover { background: var(--chip); }
+.toc .sub a { color: var(--muted); font-size: 0.92rem; padding-left: 22px; }
+main { display: grid; gap: 64px; min-width: 0; }
+section { display: grid; gap: 20px; min-width: 0; scroll-margin-top: 24px; }
+.prose { display: grid; gap: 14px; max-width: 68ch; }
+
+/* Abertura */
+.back-link { font-weight: 600; width: fit-content; }
+.intro { display: grid; gap: 18px; }
+.eyebrow {
+  color: var(--green-deep);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.intro h1 { font-size: var(--step-4); max-width: 18ch; }
+.lead { color: var(--muted); font-size: var(--step-1); max-width: 60ch; }
+.roles { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.role {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: grid;
+  gap: 6px;
+  padding: 16px 18px;
+}
+.role p { color: var(--muted); font-size: 0.98rem; }
+.role a { font-weight: 600; }
+
+.badge {
+  border-radius: 999px;
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 10px;
+  text-transform: uppercase;
+  width: fit-content;
+}
+.badge.reitoria { background: var(--green-soft); color: var(--green-deep); }
+.badge.campus { background: var(--blue-soft); color: var(--blue); }
+.badge.admin { background: var(--chip); color: var(--muted); }
+
+/* Fluxo do calendário */
+.flow { display: grid; gap: 10px; grid-template-columns: repeat(4, minmax(0, 1fr)); list-style: none; margin: 0; padding: 0; counter-reset: flow; }
+.flow li {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  counter-increment: flow;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 14px 16px;
+}
+.flow li::before {
+  color: var(--muted);
+  content: "Etapa " counter(flow);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.flow strong { font-family: var(--font-display); font-size: 1.2rem; line-height: 1.15; }
+.flow p { color: var(--muted); font-size: 0.95rem; }
+
+/* Passo a passo */
+.steps { counter-reset: step; display: grid; gap: 0; list-style: none; margin: 0; padding: 0; }
+.steps > li {
+  border-top: 1px solid var(--line);
+  counter-increment: step;
+  display: grid;
+  gap: 4px 18px;
+  grid-template-columns: 44px minmax(0, 1fr);
+  padding: 22px 0;
+}
+.steps > li::before {
+  align-items: center;
+  background: var(--track);
+  border-radius: 50%;
+  color: var(--surface);
+  content: counter(step);
+  display: flex;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  grid-row: span 3;
+  height: 38px;
+  justify-content: center;
+  width: 38px;
+}
+.track-reitoria { --track: var(--green-deep); }
+.track-campus { --track: var(--blue); }
+.steps h3 { font-size: 1.4rem; }
+.steps .body { display: grid; gap: 10px; max-width: 68ch; }
+.steps ul { display: grid; gap: 6px; margin: 0; padding-left: 20px; }
+
+.where { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 0.92rem; color: var(--muted); }
+.ui {
+  background: var(--chip);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+  font-size: 0.9em;
+  font-weight: 600;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+.arrow { color: var(--muted); }
+
+.callout {
+  border-radius: 10px;
+  display: grid;
+  gap: 4px;
+  max-width: 68ch;
+  padding: 14px 16px;
+}
+.callout strong { font-size: 0.82rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.callout.warn { background: var(--red-soft); color: var(--ink); }
+.callout.warn strong { color: var(--red); }
+.callout.tip { background: var(--green-soft); }
+.callout.tip strong { color: var(--green-deep); }
+
+/* Tabelas */
+.table-wrap { border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; background: var(--surface); }
+table { border-collapse: collapse; min-width: 560px; width: 100%; }
+th, td { border-bottom: 1px solid var(--line); padding: 10px 14px; text-align: left; vertical-align: top; }
+th { color: var(--muted); font-size: 0.82rem; letter-spacing: 0.06em; text-transform: uppercase; }
+tr:last-child td { border-bottom: 0; }
+td.num { font-variant-numeric: tabular-nums; }
+.swatch { border-radius: 4px; display: inline-block; height: 14px; margin-right: 8px; vertical-align: -2px; width: 14px; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.12); }
+.effect-off { color: var(--red); font-weight: 600; }
+.effect-on { color: var(--green-deep); font-weight: 600; }
+
+.rules { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rule {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: grid;
+  gap: 6px;
+  padding: 16px 18px;
+}
+.rule .figure { font-family: var(--font-display); font-size: 2rem; font-weight: 700; color: var(--green-deep); line-height: 1; font-variant-numeric: tabular-nums; }
+.rule p { color: var(--muted); font-size: 0.98rem; }
+
+.faq { display: grid; gap: 8px; }
+.faq details { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 0 16px; }
+.faq summary { cursor: pointer; font-weight: 600; padding: 14px 0; }
+.faq details[open] summary { border-bottom: 1px solid var(--line); }
+.faq details > div { display: grid; gap: 8px; padding: 12px 0 16px; max-width: 68ch; }
+.msg { background: var(--chip); border-radius: 6px; font-style: italic; padding: 1px 6px; }
+
+footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 0.92rem; padding-top: 20px; }
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 32px; padding-block: 24px 64px; }
+  .toc { position: static; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  .toc ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .toc .sub { display: none; }
+  .flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .roles { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px) {
+  .flow, .rules { grid-template-columns: minmax(0, 1fr); }
+  .toc ol { grid-template-columns: minmax(0, 1fr); }
+  .steps > li { grid-template-columns: 36px minmax(0, 1fr); gap: 4px 12px; }
+  .steps > li::before { height: 32px; width: 32px; font-size: 1.05rem; }
+}
+</style>
+
+</head>
+<body>
+<div class="layout">
+  <nav class="toc" aria-label="Índice">
+    <strong>Neste guia</strong>
+    <ol>
+      <li><a href="#visao-geral">Como funciona</a></li>
+      <li><a href="#acesso">Primeiro acesso</a></li>
+      <li><a href="#reitoria">Guia da Reitoria</a></li>
+      <li class="sub"><a href="#reitoria-base">Montar a base</a></li>
+      <li class="sub"><a href="#reitoria-aprovacao">Aprovar os campi</a></li>
+      <li><a href="#campus">Guia do Campus</a></li>
+      <li><a href="#regras">Regras dos dias letivos</a></li>
+      <li><a href="#tipos">Tipos de evento</a></li>
+      <li><a href="#relatorios">Relatórios e PDF</a></li>
+      <li><a href="#problemas">Problemas comuns</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <header class="intro">
+      <a class="back-link" href="/">← Voltar ao sistema</a>
+      <span class="eyebrow">Sistema de Calendário Acadêmico IFMS</span>
+      <h1>Guia de uso para a Reitoria e os campi</h1>
+      <p class="lead">Como montar, conferir, enviar e aprovar o calendário acadêmico de cada ano letivo, do calendário base até o PDF no formato oficial.</p>
+      <div class="roles">
+        <div class="role">
+          <span class="badge reitoria">Reitoria</span>
+          <p>Cria o ano letivo, monta e publica o calendário base, analisa os calendários dos campi e publica o calendário final.</p>
+          <a href="#reitoria">Ir para o guia da Reitoria</a>
+        </div>
+        <div class="role">
+          <span class="badge campus">Campus</span>
+          <p>Inclui os eventos do próprio campus sobre a base publicada, confere os 100 dias letivos e envia para aprovação.</p>
+          <a href="#campus">Ir para o guia do Campus</a>
+        </div>
+        <div class="role">
+          <span class="badge admin">Administrador (TI)</span>
+          <p>Cadastra quem pode entrar no sistema e com qual perfil, e guarda as cópias do banco de dados.</p>
+          <a href="#acesso">Ver o primeiro acesso</a>
+        </div>
+      </div>
+    </header>
+
+    <section id="visao-geral" aria-labelledby="t-visao">
+      <h2 id="t-visao">Como funciona</h2>
+      <div class="prose">
+        <p>Cada ano letivo passa pelas etapas abaixo, nesta ordem. A Reitoria define o que vale para todos os campi; cada campus acrescenta o que é só dele; a Reitoria aprova; e o calendário final fica disponível para alunos e servidores.</p>
+      </div>
+      <ol class="flow">
+        <li><span class="badge reitoria">Reitoria</span><strong>Cria o ano letivo</strong><p>Período do ano, podendo copiar os eventos do ano anterior.</p></li>
+        <li><span class="badge reitoria">Reitoria</span><strong>Monta e publica a base</strong><p>Feriados, férias, recessos, início e fim das aulas. Depois de publicada, a base não muda mais.</p></li>
+        <li><span class="badge campus">Campus</span><strong>Monta e envia</strong><p>Feriados municipais, recessos, sábados letivos e trocas, até fechar 100 dias por semestre.</p></li>
+        <li><span class="badge reitoria">Reitoria</span><strong>Aprova e publica o final</strong><p>Aprova ou rejeita cada campus. Com todos aprovados, publica o calendário final.</p></li>
+      </ol>
+    </section>
+
+    <section id="acesso" aria-labelledby="t-acesso">
+      <h2 id="t-acesso">Primeiro acesso</h2>
+      <ol class="steps track-reitoria">
+        <li>
+          <h3>Peça o seu cadastro à TI</h3>
+          <div class="body">
+            <p>Só entra quem foi cadastrado pelo Administrador, com o e-mail <strong>@ifms.edu.br</strong>, o perfil (Reitoria ou Campus) e, para o perfil Campus, o campus que vai gerenciar.</p>
+          </div>
+        </li>
+        <li>
+          <h3>Entre com a conta Google institucional</h3>
+          <div class="body">
+            <p>Abra o endereço do sistema (atualmente <strong>calendario.pp.ifms.edu.br</strong>) e clique em <span class="ui">Fazer login com o Google</span>. Use a conta <strong>@ifms.edu.br</strong>; contas pessoais não são aceitas.</p>
+            <p>O topo da tela mostra o seu perfil e o seu e-mail. Para sair, use <span class="ui">Sair</span>.</p>
+          </div>
+        </li>
+        <li>
+          <h3>Escolha o ano letivo e o campus</h3>
+          <div class="body">
+            <p>No topo, o seletor de <strong>ano letivo</strong> troca o ano exibido. A Reitoria também escolhe o <strong>campus</strong>: com <em>Todos os campi</em>, vê e confere só a base; com um campus, vê o calendário dele. O perfil Campus vê sempre o próprio campus.</p>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <section id="reitoria" aria-labelledby="t-reitoria">
+      <span class="badge reitoria">Reitoria</span>
+      <h2 id="t-reitoria">Guia da Reitoria</h2>
+
+      <h3 id="reitoria-base">Montar e publicar o calendário base</h3>
+      <ol class="steps track-reitoria">
+        <li>
+          <h3>Crie o ano letivo</h3>
+          <div class="body">
+            <div class="where">Onde: <span class="ui">Novo ano letivo</span>, no topo</div>
+            <p>Informe a data de início e de fim do ano. Para aproveitar o ano anterior, escolha-o em <em>Copiar eventos de</em>: os eventos vêm com o mesmo dia e mês no novo ano.</p>
+            <ul>
+              <li>Revise principalmente o início e o fim das aulas, porque os dias da semana mudam de um ano para o outro.</li>
+              <li>Errou o período? Use <span class="ui">Editar ano letivo</span> para corrigir ou excluir o ano, enquanto a base não tiver sido publicada.</li>
+            </ul>
+          </div>
+        </li>
+        <li>
+          <h3>Cadastre o início e o fim das aulas de cada semestre</h3>
+          <div class="body">
+            <div class="where">Onde: <span class="ui">Calendário anual</span> <span class="arrow">→</span> <span class="ui">Incluir evento da Reitoria</span></div>
+            <p>Use os tipos <em>Início/Fim de aulas Técnicas</em> e <em>Início/Fim de aulas Graduação</em>, escolha o curso e marque o <strong>semestre</strong> (1º ou 2º). É entre esses dois eventos que o sistema conta os dias letivos de cada semestre, por isso são os eventos mais importantes da base.</p>
+            <p>Cada curso pode começar em uma data diferente: cadastre um início e um fim para cada curso, em cada semestre.</p>
+          </div>
+        </li>
+        <li>
+          <h3>Inclua os feriados de uma vez</h3>
+          <div class="body">
+            <div class="where">Onde: <span class="ui">Calendário anual</span> <span class="arrow">→</span> <span class="ui">Sugerir feriados</span></div>
+            <p>O sistema lista os feriados nacionais do período, inclusive os de data móvel (Carnaval, Paixão de Cristo e Corpus Christi), e o 11 de outubro de Mato Grosso do Sul. Desmarque o que não se aplica e clique em <span class="ui">Incluir selecionados</span>.</p>
+          </div>
+        </li>
+        <li>
+          <h3>Complete a base</h3>
+          <div class="body">
+            <p>Inclua o que vale para todos os campi: <em>Férias Docentes</em>, <em>Planejamento</em>, <em>Recesso institucional</em> (Carnaval, emendas de feriado) e <em>Prazo ou atividade</em> (datas-limite, períodos de matrícula, lançamento de notas).</p>
+            <p>Na <span class="ui">Visão mensal</span>, dê dois cliques em um dia para incluir um evento naquela data, ou em um evento para editá-lo. A tela <span class="ui">Eventos</span> lista tudo em tabela, com busca.</p>
+          </div>
+        </li>
+        <li>
+          <h3>Confira antes de publicar</h3>
+          <div class="body">
+            <div class="where">Onde: <span class="ui">Dashboard</span>, com <em>Todos os campi</em> selecionado</div>
+            <p>Os cartões de <strong>Validação acadêmica</strong> mostram os dias letivos de cada curso e semestre. Clique em <span class="ui">Ver dias</span> para ver quais dias foram descontados ou acrescentados, e por qual evento.</p>
+            <p>O painel <strong>Conferência do calendário</strong> aponta problemas comuns: semestre sem início ou fim, semestres sobrepostos, eventos duplicados.</p>
+          </div>
+        </li>
+        <li>
+          <h3>Publique a base</h3>
+          <div class="body">
+            <div class="where">Onde: <span class="ui">Publicar base</span>, no topo</div>
+            <p>A janela de confirmação lista os pontos de atenção encontrados. Depois de publicar, os campi passam a montar os calendários deles.</p>
+            <div class="callout warn"><strong>Atenção</strong><p>Depois de publicado, o calendário base <strong>não pode mais ser alterado</strong>, nem pela Reitoria nem pelo Administrador. Confira tudo antes.</p></div>
+            <p>Com a base publicada, a Reitoria ainda pode incluir <em>Feriado Municipal</em> e <em>Ajuste de horário</em> para um campus específico: o botão passa a se chamar <span class="ui">Incluir feriado municipal</span>.</p>
+          </div>
+        </li>
+      </ol>
+
+      <h3 id="reitoria-aprovacao">Analisar os campi e publicar o calendário final</h3>
+      <ol class="steps track-reitoria">
+        <li>
+          <h3>Acompanhe os envios</h3>
+          <div class="body">
+            <div class="where">Onde: <span class="ui">Aprovação</span></div>
+            <p>A tabela mostra o status de cada campus: <em>Em edição</em>, <em>Pendente</em> (enviado), <em>Aprovado</em> ou <em>Rejeitado</em>. Use <span class="ui">Ver calendário</span> para abrir o calendário do campus e <span class="ui">Histórico</span> para ver cada envio e decisão.</p>
+            <p>Em <span class="ui">Relatórios</span> <span class="arrow">→</span> <span class="ui">Comparar campi</span>, os dias letivos de todos os campi aparecem lado a lado, com os valores fora da regra em vermelho.</p>
+          </div>
+        </li>
+        <li>
+          <h3>Aprove ou rejeite</h3>
+          <div class="body">
+            <p>Em cada campus pendente, clique em <span class="ui">Aprovar</span> ou <span class="ui">Rejeitar</span>. A rejeição pede um <strong>motivo</strong>, que o campus verá na tela dele para corrigir e enviar de novo.</p>
+            <p>Para devolver um campus já aprovado, use <span class="ui">Reabrir</span>.</p>
+            <div class="callout tip"><strong>Bom saber</strong><p>Se a Reitoria incluir, alterar ou remover um evento de um campus já enviado ou aprovado, esse campus volta sozinho para <em>Em edição</em>, porque a contagem dele pode ter mudado. O sistema avisa antes de salvar.</p></div>
+          </div>
+        </li>
+        <li>
+          <h3>Publique o calendário final</h3>
+          <div class="body">
+            <div class="where">Onde: <span class="ui">Aprovação</span> <span class="arrow">→</span> <span class="ui">Publicar calendário final</span></div>
+            <p>O botão só é liberado quando <strong>todos os 13 campi</strong> estiverem aprovados. Com o calendário final publicado, ninguém edita mais os eventos, e ele aparece na página pública do sistema. Para fazer um ajuste, use <span class="ui">Reabrir calendário</span>.</p>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <section id="campus" aria-labelledby="t-campus">
+      <span class="badge campus">Campus</span>
+      <h2 id="t-campus">Guia do Campus</h2>
+      <ol class="steps track-campus">
+        <li>
+          <h3>Aguarde a base publicada</h3>
+          <div class="body">
+            <p>O Dashboard avisa quando a Reitoria ainda não publicou a base. Até lá, o campus vê o calendário, mas não inclui eventos.</p>
+          </div>
+        </li>
+        <li>
+          <h3>Inclua os eventos do campus</h3>
+          <div class="body">
+            <div class="where">Onde: <span class="ui">Visão mensal</span> <span class="arrow">→</span> <span class="ui">Novo evento do campus</span>, ou dois cliques no dia</div>
+            <p>Os eventos que o campus pode incluir:</p>
+            <ul>
+              <li><strong>Feriado Municipal</strong> e <strong>Recesso</strong>: dias sem aula.</li>
+              <li><strong>Sábado Letivo</strong>: marque <em>Conta como dia letivo</em> e, se for o caso, o curso.</li>
+              <li><strong>Troca de Dia Letivo</strong>: informe o dia que deixa de ser letivo e o dia que passa a ser.</li>
+              <li><strong>Ajuste de horário</strong> (ex.: "ajuste referente à sexta-feira"), <strong>Atividade do campus</strong>, <strong>Fechamento de Diários</strong> e <strong>Entrega de Notas</strong>: só informam, não mudam a contagem.</li>
+            </ul>
+            <p>Os eventos do campus podem ser arrastados de um dia para outro na Visão mensal. Os eventos da Reitoria aparecem travados.</p>
+          </div>
+        </li>
+        <li>
+          <h3>Feche 100 dias letivos em cada semestre</h3>
+          <div class="body">
+            <div class="where">Onde: <span class="ui">Dashboard</span> <span class="arrow">→</span> <strong>Validação acadêmica</strong></div>
+            <p>Os quatro cartões (Técnico e Graduação, 1º e 2º semestre) precisam mostrar <strong>exatamente 100</strong>. Clique em <span class="ui">Ver dias</span> para descobrir quais dias estão sendo descontados ou acrescentados e corrigir o que faltar ou sobrar.</p>
+            <p>O painel <strong>Conferência do calendário</strong> avisa, por exemplo, quando um sábado letivo não cai num sábado ou quando uma troca não repõe aula.</p>
+          </div>
+        </li>
+        <li>
+          <h3>Envie para aprovação</h3>
+          <div class="body">
+            <div class="where">Onde: <span class="ui">Calendário anual</span> <span class="arrow">→</span> <span class="ui">Enviar aprovação</span></div>
+            <p>O envio só é aceito com os 100 dias em todos os semestres. Depois de enviado, o calendário fica <em>Pendente</em> e não pode ser editado até a resposta da Reitoria.</p>
+          </div>
+        </li>
+        <li>
+          <h3>Acompanhe a resposta</h3>
+          <div class="body">
+            <ul>
+              <li><strong>Aprovado</strong>: não há mais nada a fazer.</li>
+              <li><strong>Rejeitado</strong>: o motivo aparece no Dashboard. Corrija e envie de novo.</li>
+              <li><strong>Em edição</strong> de novo: a Reitoria reabriu o calendário ou mudou um evento do campus. O motivo aparece no Dashboard; confira a contagem e envie de novo.</li>
+            </ul>
+            <p>O botão <span class="ui">Histórico</span>, na tela Aprovação, mostra cada envio e decisão.</p>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <section id="regras" aria-labelledby="t-regras">
+      <h2 id="t-regras">Regras dos dias letivos</h2>
+      <div class="rules">
+        <div class="rule"><span class="figure">100</span><strong>dias letivos por semestre</strong><p>Exatamente 100, em cada semestre e em cada curso. Com 99 ou 101, o envio é bloqueado.</p></div>
+        <div class="rule"><span class="figure">Seg–Sex</span><strong>Técnico</strong><p>Conta de segunda a sexta. Sábado só conta com um <em>Sábado Letivo</em> ou uma troca.</p></div>
+        <div class="rule"><span class="figure">Seg–Sáb</span><strong>Graduação</strong><p>Todos os sábados contam. Por isso, trocar um dia por um sábado não repõe aula na Graduação.</p></div>
+        <div class="rule"><span class="figure">1 por 1</span><strong>Troca de dia letivo</strong><p>Tira o dia original e acrescenta o dia de reposição. Para só o Técnico, escolha o curso na troca.</p></div>
+      </div>
+      <div class="prose">
+        <p>A contagem vai do início ao fim das aulas cadastrados para cada curso e semestre. Feriados, férias, planejamento e recessos descontam; sábados letivos e trocas acrescentam. Prazos, atividades e ajustes de horário não mudam nada.</p>
+      </div>
+    </section>
+
+    <section id="tipos" aria-labelledby="t-tipos">
+      <h2 id="t-tipos">Tipos de evento</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Tipo</th><th>Quem inclui</th><th>Efeito na contagem</th></tr></thead>
+          <tbody>
+            <tr><td><span class="swatch" style="background:#fb923c"></span>Início/Fim de aulas Técnicas</td><td>Reitoria</td><td>Define o período do semestre</td></tr>
+            <tr><td><span class="swatch" style="background:#c2410c"></span>Início/Fim de aulas Graduação</td><td>Reitoria</td><td>Define o período do semestre</td></tr>
+            <tr><td><span class="swatch" style="background:#d1d5db"></span>Feriado Nacional</td><td>Reitoria</td><td class="effect-off">Não letivo</td></tr>
+            <tr><td><span class="swatch" style="background:#86efac"></span>Feriado Estadual</td><td>Reitoria</td><td class="effect-off">Não letivo</td></tr>
+            <tr><td><span class="swatch" style="background:#3b82f6"></span>Recesso institucional</td><td>Reitoria</td><td class="effect-off">Não letivo</td></tr>
+            <tr><td><span class="swatch" style="background:#facc15"></span>Férias Docentes</td><td>Reitoria</td><td class="effect-off">Não letivo</td></tr>
+            <tr><td><span class="swatch" style="background:#f9a8d4"></span>Planejamento</td><td>Reitoria</td><td class="effect-off">Não letivo</td></tr>
+            <tr><td><span class="swatch" style="background:#cbd5e1"></span>Prazo ou atividade</td><td>Reitoria</td><td>Não altera</td></tr>
+            <tr><td><span class="swatch" style="background:#4ade80"></span>Feriado Municipal</td><td>Campus ou Reitoria (para um campus)</td><td class="effect-off">Não letivo</td></tr>
+            <tr><td><span class="swatch" style="background:#60a5fa"></span>Recesso</td><td>Campus</td><td class="effect-off">Não letivo</td></tr>
+            <tr><td><span class="swatch" style="background:#93c5fd"></span>Sábado Letivo</td><td>Campus</td><td class="effect-on">Acrescenta o dia</td></tr>
+            <tr><td><span class="swatch" style="background:#bbf7d0"></span>Troca de Dia Letivo</td><td>Campus</td><td>Tira um dia e acrescenta outro</td></tr>
+            <tr><td><span class="swatch" style="background:#a7d9b2"></span>Ajuste de horário</td><td>Campus ou Reitoria (para um campus)</td><td>Não altera</td></tr>
+            <tr><td><span class="swatch" style="background:#c084fc"></span>Fechamento de Diários</td><td>Campus</td><td>Não altera</td></tr>
+            <tr><td><span class="swatch" style="background:#a855f7"></span>Entrega de Notas</td><td>Campus</td><td>Não altera</td></tr>
+            <tr><td><span class="swatch" style="background:#e2e8f0"></span>Atividade do campus</td><td>Campus</td><td>Não altera</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="relatorios" aria-labelledby="t-relatorios">
+      <h2 id="t-relatorios">Relatórios e PDF</h2>
+      <div class="prose">
+        <p>Na tela <span class="ui">Relatórios</span>, os relatórios usam o ano e o campus escolhidos no topo.</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Relatório</th><th>Para que serve</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Calendário oficial (PDF)</strong></td><td>Abre o calendário no formato do IFMS: lista por mês separada por semestre, com os dias letivos, e o calendário colorido com a legenda. Na janela de impressão, escolha <em>Salvar como PDF</em>, papel A4 e margens <em>Nenhuma</em>.</td></tr>
+            <tr><td><strong>Baixar planilha (CSV)</strong></td><td>Todos os eventos numa planilha que abre no Excel e no LibreOffice.</td></tr>
+            <tr><td><strong>Comparar campi</strong></td><td>Dias letivos de cada campus por curso e semestre, e o status de cada um (só Reitoria).</td></tr>
+            <tr><td><strong>Página pública</strong></td><td>Depois do calendário final publicado, alunos e servidores consultam em <strong>/publico</strong>, sem login, e importam no Google Agenda pelo arquivo .ics.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="problemas" aria-labelledby="t-problemas">
+      <h2 id="t-problemas">Problemas comuns</h2>
+      <div class="faq">
+        <details>
+          <summary>Aparece "O e-mail … não tem autorização para acessar o sistema"</summary>
+          <div><p>O seu e-mail ainda não foi cadastrado. Peça ao Administrador (TI) para incluir você, informando o perfil e, se for o caso, o campus.</p></div>
+        </details>
+        <details>
+          <summary>Aparece "Use sua conta institucional @ifms.edu.br"</summary>
+          <div><p>Você entrou com uma conta Google pessoal. Saia da conta no Google e entre com o e-mail do IFMS.</p></div>
+        </details>
+        <details>
+          <summary>O envio foi bloqueado por causa dos 100 dias</summary>
+          <div><p>Algum semestre está com mais ou menos de 100 dias. No Dashboard, clique em <span class="ui">Ver dias</span> no cartão que não fechou: a lista mostra o que está sendo descontado e acrescentado. Ajuste com sábados letivos, trocas ou removendo eventos que tiram aula.</p></div>
+        </details>
+        <details>
+          <summary>Não consigo editar um evento</summary>
+          <div>
+            <p>Veja qual destes casos se aplica:</p>
+            <ul>
+              <li>É um evento da base e a base já foi publicada: não pode mais ser alterado.</li>
+              <li>O calendário do campus está <em>Pendente</em> ou <em>Aprovado</em>: aguarde a resposta ou peça à Reitoria para reabrir.</li>
+              <li>O calendário final foi publicado: só a Reitoria pode reabri-lo.</li>
+            </ul>
+          </div>
+        </details>
+        <details>
+          <summary>Aparece "Erro 502 ao acessar …" (ou outro número)</summary>
+          <div><p>A resposta não veio do sistema, e sim do servidor ou da rede do IF. Anote o número e o endereço que aparecem na mensagem e informe à TI.</p></div>
+        </details>
+      </div>
+    </section>
+
+    <footer>
+      <p>Sistema de Calendário Acadêmico IFMS · Dúvidas sobre o acesso: fale com a TI. Dúvidas sobre as datas do calendário: fale com a Reitoria.</p>
+    </footer>
+  </main>
+</div>
+
+</body>
+</html>

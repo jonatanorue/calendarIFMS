@@ -300,6 +300,9 @@ test("tipos informativos e títulos longos, como no calendário oficial", async 
   assert.equal(adjust.status, 200, "a Reitoria inclui ajuste de horário para um campus");
   assert.equal((await as.reitoria("DELETE", "/api/years/2030-02-01", {})).status, 200);
   assert.equal((await fetch(`${base}/impressao`)).status, 200);
+  const guide = await fetch(`${base}/ajuda`);
+  assert.equal(guide.status, 200, "guia abre sem login");
+  assert.match(await guide.text(), /Guia de uso para a Reitoria e os campi/);
 });
 
 test("situação e cópia do banco: só o Administrador", async () => {

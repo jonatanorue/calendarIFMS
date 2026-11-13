@@ -99,6 +99,7 @@ docker compose cp calendario:/app/data/calendar.db ./backup-calendar.db
 - **Conferência do calendário**: avisos de semestre sem início/fim, semestres sobrepostos, sábado letivo fora do sábado, eventos que não alteram a contagem, duplicados e trocas que não repõem aula. Aparecem no Dashboard e antes de publicar a base.
 - **Sugerir feriados**: feriados nacionais (inclusive Carnaval, Paixão e Corpus Christi) e o feriado estadual de MS do período, incluídos de uma vez.
 - **Histórico** de envios, aprovações e rejeições de cada campus.
+- **Guia de uso** em `/ajuda`, sem login, com o passo a passo da Reitoria e do Campus (link no menu e na tela de login). Ao mudar uma tela ou regra, atualize também `public/ajuda.html`.
 - **Calendário público** em `/publico`, sem login, com os calendários finais publicados e arquivo `.ics` para importar no Google Agenda.
 - **Calendário oficial (PDF)** em `/impressao?ano=…&campus=…`: reproduz o modelo do IFMS em folhas A4 (lista por mês separada por semestre, com dias letivos, e calendário colorido com a legenda oficial). Abre pela tela Relatórios ou pela página pública; salve com "Salvar como PDF" na janela de impressão.
 - **Recesso institucional**: recesso lançado pela Reitoria na base, para todos os campi (ex.: Carnaval, emenda de feriado). O Recesso do campus continua para os recessos locais.
