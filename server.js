@@ -1,10 +1,12 @@
 const http = require("http");
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const campuses = require("./public/campuses.js");
 const db = require("./db");
 const { verifyGoogleIdToken } = require("./google-auth");
 const { handleCalendarApi, handlePublicApi } = require("./calendar-api");
+const { storageCheck } = require("./storage");
 
 const port = Number(process.env.PORT || 3001);
 const publicDir = path.join(__dirname, "public");
@@ -271,6 +273,19 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  if (url.pathname.startsWith("/api/admin/")) {
+    if (user.role !== "ADMIN") return sendJson(res, 403, { error: "Acesso restrito ao administrador." });
+    if (route === "GET /api/admin/status") {
+      sendJson(res, 200, { database: db.databaseInfo(), storage: storageCheck(db.databasePath) });
+      return;
+    }
+    if (route === "GET /api/admin/backup") {
+      sendBackup(res, user);
+      return;
+    }
+    return sendJson(res, 404, { error: "Rota não encontrada." });
+  }
+
   if (url.pathname === "/api/users" || url.pathname.startsWith("/api/users/")) {
     if (user.role !== "ADMIN") return sendJson(res, 403, { error: "Acesso restrito ao administrador." });
     await handleUsers(req, res, url, user);
@@ -283,6 +298,32 @@ async function handleApi(req, res, url) {
   }
 
   sendJson(res, 404, { error: "Rota não encontrada." });
+}
+
+// Gera uma cópia do banco num arquivo temporário, envia para download e apaga em seguida.
+function sendBackup(res, user) {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "calendario-backup-"));
+  const file = path.join(directory, "calendar.db");
+  const cleanup = () => fs.rm(directory, { recursive: true, force: true }, () => {});
+  try {
+    db.backupTo(file);
+  } catch (error) {
+    cleanup();
+    throw error;
+  }
+  const stamp = new Date().toISOString().slice(0, 10);
+  res.writeHead(200, {
+    ...securityHeaders,
+    "Content-Type": "application/vnd.sqlite3",
+    "Content-Length": fs.statSync(file).size,
+    "Content-Disposition": `attachment; filename="calendario-backup-${stamp}.db"`,
+    "Cache-Control": "no-store",
+  });
+  const stream = fs.createReadStream(file);
+  stream.on("close", cleanup);
+  stream.on("error", cleanup);
+  stream.pipe(res);
+  db.addAudit({ user: user.email, action: "Cópia do banco baixada", newValue: `calendario-backup-${stamp}.db` });
 }
 
 function safeDecode(value) {
@@ -361,4 +402,6 @@ server.listen(port, () => {
   console.log(`Calendar IFMS prototype running at http://localhost:${port}`);
   if (!googleClientId) console.warn("GOOGLE_CLIENT_ID não definido: o login com Google ficará indisponível.");
   if (devLogin) console.warn("DEV_LOGIN=1: login sem Google habilitado. Use apenas em desenvolvimento.");
+  const storage = storageCheck(db.databasePath);
+  if (storage.persistent === false) console.warn(`ATENÇÃO: ${storage.reason} Monte um volume persistente nessa pasta.`);
 });

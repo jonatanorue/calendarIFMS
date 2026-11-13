@@ -968,3 +968,33 @@ dialog h3 {
 #events .section-head input[type="search"] {
   min-width: 220px;
 }
+
+.database-panel {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+  padding-top: 14px;
+}
+
+.database-panel h3 {
+  font-size: 15px;
+  margin: 0 0 8px;
+}
+
+.database-status {
+  font-size: 13px;
+  gap: 6px 16px;
+  grid-template-columns: max-content 1fr;
+  margin: 0;
+}
+
+.database-status dd {
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.database-status dd.count-off {
+  color: var(--red);
+  font-weight: 700;
+}

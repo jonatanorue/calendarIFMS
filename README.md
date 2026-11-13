@@ -43,6 +43,7 @@ docker compose up -d --build
 ```
 
 - O banco fica no volume `calendario-data`, montado em `/app/data`. Ele sobrevive a atualizações do container.
+- **Em outro PaaS ou orquestrador, monte um volume persistente em `/app/data`** e rode **uma só instância** (o SQLite é um arquivo). Sem volume, o banco é apagado a cada deploy: o servidor avisa no log ao iniciar e o painel do Administrador mostra "Disco persistente: Não" com um aviso em destaque.
 - A porta é publicada em `127.0.0.1:3001`, ou seja, só o próprio servidor (o proxy HTTPS) acessa o container. Se o proxy estiver em outra máquina, defina `HOST_BIND=0.0.0.0`; para mudar a porta, `HOST_PORT`.
 - `COOKIE_SECURE` vale `1` por padrão: sirva o sistema por HTTPS (por exemplo, atrás de um proxy reverso como Nginx ou Traefik).
 - `DEV_LOGIN` nunca é repassado ao container, e o servidor o recusa com `NODE_ENV=production`. Ali o login é sempre pelo Google.
@@ -55,7 +56,7 @@ Atualizar após mudanças no código:
 git pull && docker compose up -d --build
 ```
 
-Cópia de segurança do banco:
+Cópia de segurança do banco: pelo sistema, o Administrador usa **Dashboard → Administração → Baixar cópia do banco** (o download fica registrado na auditoria). Pelo servidor:
 
 ```bash
 docker compose cp calendario:/app/data/calendar.db ./backup-calendar.db

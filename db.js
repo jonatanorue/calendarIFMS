@@ -88,6 +88,10 @@ db.exec(`
   );
 `);
 
+// Data de criação do banco: se mudar a cada deploy, o banco está sendo recriado (sem volume).
+db.exec("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+db.prepare("INSERT OR IGNORE INTO meta (key, value) VALUES ('created_at', datetime('now'))").run();
+
 // Ajustes em bancos criados por versões anteriores.
 if (!db.prepare("PRAGMA table_info(events)").all().some((column) => column.name === "swap_date")) {
   db.exec("ALTER TABLE events ADD COLUMN swap_date TEXT");
@@ -312,7 +316,31 @@ function listAudit(limit = 500) {
     .all(limit);
 }
 
+function databaseInfo() {
+  const count = (table) => db.prepare(`SELECT COUNT(*) AS total FROM ${table}`).get().total;
+  let sizeBytes = 0;
+  try {
+    sizeBytes = fs.statSync(databasePath).size;
+  } catch {
+    // arquivo ainda não gravado
+  }
+  return {
+    path: path.resolve(databasePath),
+    sizeBytes,
+    createdAt: db.prepare("SELECT value FROM meta WHERE key = 'created_at'").get()?.value || null,
+    counts: { users: count("users"), years: count("academic_years"), events: count("events"), audit: count("audit") },
+  };
+}
+
+// Cópia consistente do banco num arquivo novo, mesmo com o sistema em uso.
+function backupTo(file) {
+  db.prepare("VACUUM INTO ?").run(file);
+}
+
 module.exports = {
+  databasePath,
+  databaseInfo,
+  backupTo,
   transaction,
   listYears,
   getYear,

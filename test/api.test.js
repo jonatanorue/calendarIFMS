@@ -302,6 +302,37 @@ test("tipos informativos e títulos longos, como no calendário oficial", async 
   assert.equal((await fetch(`${base}/impressao`)).status, 200);
 });
 
+test("situação e cópia do banco: só o Administrador", async () => {
+  assert.equal((await as.reitoria("GET", "/api/admin/status")).status, 403);
+  const status = await as.admin("GET", "/api/admin/status");
+  assert.equal(status.status, 200);
+  assert.ok(status.data.database.counts.users >= 4);
+  assert.ok(status.data.database.createdAt);
+  assert.ok("persistent" in status.data.storage);
+
+  const cookieOf = async (email) => {
+    const response = await fetch(`${base}/api/auth/dev`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
+    return response.headers.get("set-cookie").split(";")[0];
+  };
+  const denied = await fetch(`${base}/api/admin/backup`, { headers: { cookie: await cookieOf("reitoria@ifms.edu.br") } });
+  assert.equal(denied.status, 403);
+  const backup = await fetch(`${base}/api/admin/backup`, { headers: { cookie: await cookieOf("admin@ifms.edu.br") } });
+  assert.equal(backup.status, 200);
+  assert.match(backup.headers.get("content-disposition"), /attachment; filename="calendario-backup-\d{4}-\d{2}-\d{2}\.db"/);
+  const bytes = Buffer.from(await backup.arrayBuffer());
+  assert.equal(bytes.subarray(0, 16).toString("latin1"), "SQLite format 3\u0000", "arquivo SQLite válido");
+
+  // A cópia abre como banco e tem os mesmos usuários.
+  const { DatabaseSync } = require("node:sqlite");
+  const copyPath = path.join(dataDir, "copia.db");
+  fs.writeFileSync(copyPath, bytes);
+  const copy = new DatabaseSync(copyPath);
+  assert.equal(copy.prepare("SELECT COUNT(*) AS total FROM users").get().total, status.data.database.counts.users);
+  copy.close();
+  const audit = await as.reitoria("GET", "/api/audit");
+  assert.ok(audit.data.some((entry) => entry.action === "Cópia do banco baixada" && entry.user === "admin@ifms.edu.br"));
+});
+
 test("endereços inválidos não derrubam o servidor", async () => {
   assert.equal((await as.reitoria("GET", "/api/years/%E0")).status, 400);
   assert.equal((await fetch(`${base}/%E0`)).status, 400);

@@ -54,6 +54,7 @@ let users = [];
 let academicYears = [];
 let currentYear = null;
 let auditEntries = [];
+let adminStatus = null;
 
 function nowLabel() {
   return new Date().toLocaleString("pt-BR");
@@ -1543,6 +1544,44 @@ async function loadYears() {
   if (state.selectedMonthIndex >= (year() ? getAcademicMonths().length : 1)) state.selectedMonthIndex = 0;
 }
 
+async function loadAdminStatus() {
+  adminStatus = can("manage-admin") ? await api("/api/admin/status").catch(() => null) : null;
+  renderAdminStatus();
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} bytes`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+// Situação do banco para o Administrador, com aviso em destaque se ele não sobreviver a um deploy.
+function renderAdminStatus() {
+  const warning = document.getElementById("storageWarning");
+  const list = document.getElementById("databaseStatus");
+  if (!adminStatus) {
+    warning.hidden = true;
+    list.innerHTML = "";
+    return;
+  }
+  const { database, storage } = adminStatus;
+  warning.hidden = storage.persistent !== false;
+  warning.textContent = storage.persistent === false
+    ? `Atenção, Administrador: o banco de dados não está num disco persistente. ${storage.reason} Peça à TI para montar um volume em ${database.path.replace(/\/[^/]+$/, "")} e baixe uma cópia do banco agora.`
+    : "";
+  const persistence = storage.persistent === true ? "Sim" : storage.persistent === false ? "Não — será apagado no próximo deploy" : "Não verificado";
+  list.innerHTML = [
+    ["Arquivo", database.path],
+    ["Tamanho", formatBytes(database.sizeBytes)],
+    ["Criado em", database.createdAt ? formatDateTime(database.createdAt) : "-"],
+    ["Disco persistente", persistence],
+    ["Detalhe", storage.reason],
+    ["Conteúdo", `${database.counts.users} usuário(s), ${database.counts.years} ano(s) letivo(s), ${database.counts.events} evento(s), ${database.counts.audit} registro(s) de auditoria`],
+  ]
+    .map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd class="${label === "Disco persistente" && storage.persistent === false ? "count-off" : ""}">${escapeHtml(value)}</dd>`)
+    .join("");
+}
+
 async function loadAudit() {
   auditEntries = can("view-audit") ? await api("/api/audit").catch(() => []) : [];
 }
@@ -1556,6 +1595,8 @@ function applyUser(user) {
 
 function showLogin(message = "") {
   currentUser = null;
+  adminStatus = null;
+  document.getElementById("storageWarning").hidden = true;
   users = [];
   academicYears = [];
   currentYear = null;
@@ -1577,7 +1618,10 @@ async function onSignedIn(user) {
     showToast(error.message);
   }
   render();
-  if (can("manage-admin")) await loadUsers();
+  if (can("manage-admin")) {
+    await loadUsers();
+    await loadAdminStatus();
+  }
 }
 
 async function signIn(path, body) {

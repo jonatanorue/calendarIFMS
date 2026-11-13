@@ -69,6 +69,7 @@
       </header>
 
       <section id="dashboard" class="view active">
+        <div class="notice warning" id="storageWarning" role="alert" hidden></div>
         <div class="notice" id="calendarNotice" role="status" hidden></div>
         <div class="metrics" id="metrics"></div>
         <div class="grid two">
@@ -93,6 +94,16 @@
               <button data-action="manage-users">Usuários e permissões</button>
               <button data-action="manage-campi">Gerenciar campi</button>
             </div>
+          </div>
+          <div class="database-panel">
+            <div>
+              <h3>Banco de dados</h3>
+              <dl class="database-status" id="databaseStatus"></dl>
+            </div>
+            <div class="actions">
+              <a class="button" href="/api/admin/backup" download>Baixar cópia do banco</a>
+            </div>
+            <p class="hint">Guarde cópias regularmente (por exemplo, uma por semana e antes de cada atualização do sistema). O arquivo .db contém todos os dados, inclusive os e-mails dos usuários: guarde em local restrito.</p>
           </div>
           <div id="adminOutput" class="output light"></div>
         </section>
